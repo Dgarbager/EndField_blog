@@ -1,20 +1,19 @@
-"""Prepare static files for publication; dist is generated and untracked."""
+"""Package code only. Runtime data and credentials must never enter a release."""
 from pathlib import Path
-from urllib.parse import urlsplit
 import os
 import shutil
-import xml.etree.ElementTree as ET
+import tempfile
+import re
 
-root = Path(__file__).resolve().parents[1]
-site_url = os.environ.get("SITE_URL", "").rstrip("/")
-parsed = urlsplit(site_url)
-if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.query or parsed.fragment or parsed.username or parsed.password:
-    raise SystemExit("SITE_URL must be an http(s) public site URL without credentials, query or fragment")
-# The CI runner starts clean; existing output is merged without deleting user files.
-shutil.copytree(root / "public", root / "dist", dirs_exist_ok=True)
-feed = ET.parse(root / "dist" / "rss.xml")
-for link in feed.findall(".//link"):
-    if link.text and link.text.startswith("http://127.0.0.1:8770"):
-        link.text = site_url + link.text[len("http://127.0.0.1:8770"):]
-feed.write(root / "dist" / "rss.xml", encoding="utf-8", xml_declaration=True)
-print("Prepared dist/ with the configured public RSS address")
+root=Path(__file__).resolve().parents[1]
+# Use a fresh temporary directory for every package; never reuse stale dist files.
+with tempfile.TemporaryDirectory(prefix='lingxi-package-') as tmp:
+    destination=Path(tmp)/'package';destination.mkdir()
+    for name in ('backend','frontend','scripts','deploy'):
+        shutil.copytree(root/name,destination/name,ignore=shutil.ignore_patterns('__pycache__','*.pyc','.venv','storage','.env','*.db','*.db-wal','*.db-shm'))
+    release=os.environ.get('GITHUB_SHA','local')
+    if not re.fullmatch(r'[A-Za-z0-9_-]+',release):raise SystemExit('Invalid release identifier')
+    (destination/'RELEASE').write_text(release,encoding='utf-8')
+    target=root/'dist';target.mkdir(exist_ok=True)
+    shutil.make_archive(str(target/'blog-release'),'gztar',root_dir=destination)
+print('Prepared dist/blog-release.tar.gz (code only; no storage or secrets)')

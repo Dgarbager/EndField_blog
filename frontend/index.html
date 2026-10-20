@@ -13,8 +13,10 @@
   <link rel="stylesheet" href="./assets/feed.css">
   <link rel="stylesheet" href="./assets/dual-view.css">
   <link rel="stylesheet" href="./assets/themes.css">
+  <link rel="stylesheet" href="./assets/content.css">
   <script src="./assets/theme.js" defer></script>
   <script src="./assets/boot.js" defer></script>
+  <script src="./assets/api.js" defer></script>
   <script src="./assets/app.js" defer></script>
 </head>
 <body data-active-view="terminal">
@@ -86,15 +88,15 @@
           <div class="ef-blog-stats">
             <div class="ef-stat-cell">
               <span class="ef-stat-label ef-mono-label">TOTAL_DOCS // 归档总数</span>
-              <span class="ef-stat-val">89 <small>LOGS</small></span>
+              <span class="ef-stat-val"><span id="stat-total-docs">—</span> <small>LOGS</small></span>
             </div>
             <div class="ef-stat-cell">
               <span class="ef-stat-label ef-mono-label">LATEST_UPLOAD // 最新上传</span>
-              <span class="ef-stat-val ef-stat-date">2026.10.18</span>
+              <span class="ef-stat-val ef-stat-date" id="stat-last-update">—</span>
             </div>
             <div class="ef-stat-cell">
               <span class="ef-stat-label ef-mono-label">WORD_VOLUME // 累计字数</span>
-              <span class="ef-stat-val">142.8 <small>K</small></span>
+              <span class="ef-stat-val"><span id="stat-total-words">—</span> <small id="stat-word-unit"></small></span>
             </div>
           </div>
 
@@ -107,7 +109,7 @@
             <button type="button" class="ef-btn ef-btn-ghost ef-mono-label js-random-post">
               [ RANDOM_LOG // 随机漫游 ]
             </button>
-            <a href="./rss.xml" class="ef-btn ef-btn-ghost ef-mono-label">
+            <a href="/rss.xml" class="ef-btn ef-btn-ghost ef-mono-label">
               [ RSS_SYNC ]
             </a>
           </div>
@@ -168,7 +170,7 @@
                   <span class="ef-sector-arrow">↗</span>
                 </div>
                 <div class="ef-sector-name">算法与智能控制</div>
-                <div class="ef-sector-meta ef-mono-label">[ 24 DOCS // ML &amp; GA ]</div>
+                <div class="ef-sector-meta ef-mono-label">[ <span id="sec-01-count">—</span> DOCS // ML &amp; GA ]</div>
               </button>
 
               <button type="button" class="ef-sector-card js-enter-archive" data-sector="SEC_02">
@@ -177,7 +179,7 @@
                   <span class="ef-sector-arrow">↗</span>
                 </div>
                 <div class="ef-sector-name">系统工程与造物</div>
-                <div class="ef-sector-meta ef-mono-label">[ 18 DOCS // TRIZ &amp; HW ]</div>
+                <div class="ef-sector-meta ef-mono-label">[ <span id="sec-02-count">—</span> DOCS // TRIZ &amp; HW ]</div>
               </button>
 
               <button type="button" class="ef-sector-card js-enter-archive" data-sector="SEC_03">
@@ -186,7 +188,7 @@
                   <span class="ef-sector-arrow">↗</span>
                 </div>
                 <div class="ef-sector-name">网络与终端架构</div>
-                <div class="ef-sector-meta ef-mono-label">[ 15 DOCS // LINUX &amp; WEB ]</div>
+                <div class="ef-sector-meta ef-mono-label">[ <span id="sec-03-count">—</span> DOCS // LINUX &amp; WEB ]</div>
               </button>
 
               <button type="button" class="ef-sector-card js-enter-archive" data-sector="SEC_04">
@@ -195,7 +197,7 @@
                   <span class="ef-sector-arrow">↗</span>
                 </div>
                 <div class="ef-sector-name">光学影像归档</div>
-                <div class="ef-sector-meta ef-mono-label">[ 32 DOCS // PHOTOGRAPHY ]</div>
+                <div class="ef-sector-meta ef-mono-label">[ <span id="sec-04-count">—</span> DOCS // PHOTOGRAPHY ]</div>
               </button>
             </div>
           </div>
@@ -210,7 +212,7 @@
       </footer>
     </div>
     <div class="ef-terminal-status"><span id="ef-boot-status" class="ef-mono-label" role="status">SYSTEM STANDBY // 等待接入</span><button id="ef-replay" type="button" class="ef-filter-chip">↻ 重播自检</button></div>
-    <p class="ef-preview-note">预览模式 // 统计与文章使用草案示例数据</p>
+    <p class="ef-preview-note"><span id="data-status">ARCHIVE DATA // 正在连接数据库</span> · <a href="./admin.html">[ ADMIN // 管理后台 ]</a></p>
   </section>
 
 
@@ -246,12 +248,12 @@
         <span class="ef-divider">|</span>
         <div class="ef-mini-metric">
           <span class="ef-dim">TOTAL_LOGS</span>
-          <strong>89 DOCS</strong>
+          <strong><span id="mini-total-docs">—</span> DOCS</strong>
         </div>
         <span class="ef-divider">|</span>
         <div class="ef-mini-metric">
           <span class="ef-dim">LATEST_UPLOAD</span>
-          <strong>2026.10.18</strong>
+          <strong id="mini-last-update">—</strong>
         </div>
         <span class="ef-divider">|</span>
         <div class="ef-mini-metric">
@@ -267,7 +269,7 @@
         <h2 class="ef-feed-title" id="archive-heading" tabindex="-1">ARCHIVE_LOGS <span class="ef-subname" id="js-current-sector-label">// 全部归档日志</span></h2>
       </div>
       <nav class="ef-feed-filters ef-mono-label" aria-label="Sector Filter">
-        <button class="ef-filter-chip active" type="button" data-filter="ALL">ALL_LOGS [04]</button>
+        <button class="ef-filter-chip active" type="button" data-filter="ALL">ALL_LOGS [<span id="filter-all-count">—</span>]</button>
         <button class="ef-filter-chip" type="button" data-filter="SEC_01">SEC_01 // 算法</button>
         <button class="ef-filter-chip" type="button" data-filter="SEC_02">SEC_02 // 工程</button>
         <button class="ef-filter-chip" type="button" data-filter="SEC_03">SEC_03 // 架构</button>
@@ -275,159 +277,9 @@
       </nav>
     </div>
 
-    <!-- 文章列表容器 -->
-    <div class="ef-post-list" id="js-post-list">
-
-      <!-- 文章 01 -->
-      <article class="ef-post-card is-pinned" data-category="SEC_01">
-        <div class="ef-post-spine">
-          <span class="ef-mono-label ef-spine-label">LOG_ID</span>
-          <span class="ef-spine-num">01</span>
-          <span class="ef-pin-badge">PINNED</span>
-        </div>
-        <div class="ef-post-body">
-          <div class="ef-post-meta-top ef-mono-label">
-            <span class="ef-post-cat">■ SEC_01 // 算法与智能控制</span>
-            <div class="ef-post-telemetry">
-              <span>TS // 2026.10.18</span>
-              <span class="ef-divider">|</span>
-              <span>WORDS // 4.2K</span>
-            </div>
-          </div>
-          <h3 class="ef-post-title">
-            <a href="/posts/cnc-gcode-arc-fitting">
-              基于遗传算法与最小二乘法的 CNC 雕刻刀路 G02 圆弧拟合优化
-            </a>
-          </h3>
-          <p class="ef-post-excerpt">
-            针对 1mm 微径铣刀在复杂轮廓加工中的高频折线抖动问题，提出一种结合 Canny 边缘提取与最小二乘圆弧拟合的 G 代码后处理管线，显著平滑机床加减速冲击。
-          </p>
-          <div class="ef-post-footer ef-mono-label">
-            <div class="ef-post-tags">
-              <span class="ef-tag-item">#GENETIC_ALG</span>
-              <span class="ef-tag-item">#MATLAB</span>
-              <span class="ef-tag-item">#CNC_GCODE</span>
-            </div>
-            <span class="ef-read-time">EST_READ // 08 MIN</span>
-          </div>
-        </div>
-        <a href="/posts/cnc-gcode-arc-fitting" class="ef-post-thumb" aria-hidden="true" tabindex="-1">
-          <div class="ef-thumb-frame">
-            <img src="./assets/cnc-toolpath.svg" alt="" class="ef-thumb-img" />
-            <span class="ef-thumb-overlay"></span>
-            <span class="ef-thumb-coord ef-mono-label">CAM_01 // RAW</span>
-            <span class="ef-thumb-action ef-mono-label">ACCESS_LOG ↗</span>
-          </div>
-        </a>
-      </article>
-
-      <!-- 文章 02 -->
-      <article class="ef-post-card" data-category="SEC_02">
-        <div class="ef-post-spine">
-          <span class="ef-mono-label ef-spine-label">LOG_ID</span>
-          <span class="ef-spine-num">02</span>
-          <span class="ef-spine-deco" aria-hidden="true"></span>
-        </div>
-        <div class="ef-post-body">
-          <div class="ef-post-meta-top ef-mono-label">
-            <span class="ef-post-cat">■ SEC_02 // 系统工程与造物</span>
-            <div class="ef-post-telemetry">
-              <span>TS // 2026.10.12</span>
-              <span class="ef-divider">|</span>
-              <span>WORDS // 5.8K</span>
-            </div>
-          </div>
-          <h3 class="ef-post-title">
-            <a href="/posts/microgrid-stability-triz">
-              微电网系统多源协同稳定控制架构：从物场分析到硬件在环仿真
-            </a>
-          </h3>
-          <p class="ef-post-excerpt">
-            围绕高比例新能源并网场景下的母线电压振荡矛盾，构建九屏幕系统演进模型与动态功率分配策略，实现毫秒级瞬态响应与孤岛平滑切换。
-          </p>
-          <div class="ef-post-footer ef-mono-label">
-            <div class="ef-post-tags">
-              <span class="ef-tag-item">#MICROGRID</span>
-              <span class="ef-tag-item">#CONTROL_SYS</span>
-              <span class="ef-tag-item">#TRIZ</span>
-            </div>
-            <span class="ef-read-time">EST_READ // 11 MIN</span>
-          </div>
-        </div>
-      </article>
-
-      <!-- 文章 03 -->
-      <article class="ef-post-card" data-category="SEC_03">
-        <div class="ef-post-spine">
-          <span class="ef-mono-label ef-spine-label">LOG_ID</span>
-          <span class="ef-spine-num">03</span>
-          <span class="ef-spine-deco" aria-hidden="true"></span>
-        </div>
-        <div class="ef-post-body">
-          <div class="ef-post-meta-top ef-mono-label">
-            <span class="ef-post-cat">■ SEC_03 // 网络与终端架构</span>
-            <div class="ef-post-telemetry">
-              <span>TS // 2026.09.28</span>
-              <span class="ef-divider">|</span>
-              <span>WORDS // 2.6K</span>
-            </div>
-          </div>
-          <h3 class="ef-post-title">
-            <a href="/posts/linux-ipv6-warp-routing">
-              Linux 边缘节点双栈网络调优：WARP 虚拟网卡分流与策略路由实践
-            </a>
-          </h3>
-          <p class="ef-post-excerpt">
-            详解纯 IPv6 云主机环境下构建虚拟双栈出口的完整链路，通过内核路由表标记与守护进程监控，兼顾低延迟直连与出站高可用性。
-          </p>
-          <div class="ef-post-footer ef-mono-label">
-            <div class="ef-post-tags">
-              <span class="ef-tag-item">#LINUX</span>
-              <span class="ef-tag-item">#IPV6</span>
-              <span class="ef-tag-item">#NETWORK</span>
-            </div>
-            <span class="ef-read-time">EST_READ // 05 MIN</span>
-          </div>
-        </div>
-      </article>
-
-      <!-- 文章 04 -->
-      <article class="ef-post-card" data-category="SEC_04">
-        <div class="ef-post-spine">
-          <span class="ef-mono-label ef-spine-label">LOG_ID</span>
-          <span class="ef-spine-num">04</span>
-          <span class="ef-spine-deco" aria-hidden="true"></span>
-        </div>
-        <div class="ef-post-body">
-          <div class="ef-post-meta-top ef-mono-label">
-            <span class="ef-post-cat">■ SEC_04 // 光学影像归档</span>
-            <div class="ef-post-telemetry">
-              <span>TS // 2026.09.15</span>
-              <span class="ef-divider">|</span>
-              <span>FRAMES // 24 RAW</span>
-            </div>
-          </div>
-          <h3 class="ef-post-title">
-            <a href="/posts/industrial-aesthetics-photography">
-              城市边缘的重工几何：东北工业遗存建筑与冷调光影场记
-            </a>
-          </h3>
-          <p class="ef-post-excerpt">
-            使用 35mm 与 85mm 定焦镜头记录高炉、桁架与夕阳下的混凝土切面，探索现代工业结构在暗调影调中的秩序感。
-          </p>
-          <div class="ef-post-footer ef-mono-label">
-            <div class="ef-post-tags">
-              <span class="ef-tag-item">#PHOTOGRAPHY</span>
-              <span class="ef-tag-item">#INDUSTRIAL</span>
-              <span class="ef-tag-item">#OPTICS</span>
-            </div>
-            <span class="ef-read-time">EST_VIEW // 04 MIN</span>
-          </div>
-        </div>
-      </article>
-
-    </div>
-
+    <div class="ef-post-list" id="js-post-list" aria-busy="true"></div>
+    <p id="feed-status" class="ef-preview-note" role="status" aria-live="polite">正在连接归档库…</p>
+    <button type="button" class="ef-filter-chip" id="feed-retry" hidden>重新连接</button>
     <div class="ef-selection"><span class="ef-feed-count ef-mono-label" role="status" aria-live="polite"></span><button type="button" class="ef-filter-chip" id="ef-clear-filter" hidden>清除标签 ×</button></div>
     <p id="ef-feed-empty" hidden>暂无匹配归档，请尝试其他扇区或清除标签。</p>
     <nav class="ef-pagination ef-mono-label" aria-label="文章分页">
@@ -435,15 +287,11 @@
       <button type="button" class="ef-page-btn" data-page="prev">[ &lt; PREV ]</button><span id="ef-page-numbers"></span><button type="button" class="ef-page-btn" data-page="next">[ NEXT &gt; ]</button>
       </div>
     </nav>
-    <p class="ef-preview-note">演示归档：4 篇摘要。89 LOGS / 142.8K 为草案示例统计，完整正文尚未接入。</p>
+    
 
   </section>
 
-<dialog id="ef-log-preview" aria-labelledby="ef-log-title">
-  <div class="ef-log-dialog-bar"><span class="ef-mono-label">ARCHIVE_RECORD // 归档预览</span><button type="button" id="ef-close-log" class="ef-filter-chip">关闭 ×</button></div>
-  <p id="ef-log-meta" class="ef-mono-label"></p><h2 id="ef-log-title"></h2><p id="ef-log-excerpt"></p>
-  <p class="ef-log-note">当前展示演示文章摘要，完整正文将在接入博客后提供。</p>
-</dialog>
+
 </main>
 </body>
 </html>

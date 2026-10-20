@@ -1,0 +1,314 @@
+"""Lingxi Archive API. Content lives in STORAGE_DIR, never in release folders."""
+from __future__ import annotations
+
+from contextlib import asynccontextmanager, contextmanager
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
+from typing import Literal
+from urllib.parse import urlsplit
+import math
+import os
+import re
+import secrets
+import sqlite3
+import warnings
+import xml.etree.ElementTree as ET
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, UploadFile, File
+from fastapi.responses import Response, JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
+from PIL import Image, UnidentifiedImageError
+from pydantic import BaseModel, Field, field_validator
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+SECTORS = ('SEC_01', 'SEC_02', 'SEC_03', 'SEC_04')
+TZ = timezone(timedelta(hours=8))
+IMAGE_TYPES = {'PNG': '.png', 'JPEG': '.jpg', 'WEBP': '.webp', 'GIF': '.gif'}
+ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+Image.MAX_IMAGE_PIXELS = 40_000_000
+security = HTTPBearer(auto_error=False)
+SUMMARY_COLUMNS = 'id,title,sector,excerpt,tags,cover_url,word_count,read_time,is_pinned,created_at,updated_at'
+
+
+def timestamp():
+    return datetime.now(TZ).isoformat(timespec='seconds')
+
+
+def text_from_markdown(markdown: str) -> str:
+    text = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', markdown)
+    text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    return re.sub(r'\s+', ' ', re.sub(r'[`#>*_~]', '', text)).strip()
+
+
+def normalize_tags(value: str) -> str:
+    tags = []
+    for token in value.replace('，', ',').split(','):
+        token = token.strip().lstrip('#').strip()
+        if not token:
+            continue
+        if len(token) > 48 or any(c in token for c in '\r\n<>'):
+            raise ValueError('标签长度不得超过48字，且不能含换行或HTML符号')
+        if token.casefold() not in {x.casefold() for x in tags}:
+            tags.append(token)
+    if len(tags) > 24:
+        raise ValueError('最多24个标签')
+    return ','.join(tags)
+
+
+class PostInput(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    sector: Literal['SEC_01', 'SEC_02', 'SEC_03', 'SEC_04']
+    excerpt: str = Field(default='', max_length=1000)
+    content_md: str = Field(min_length=1, max_length=1_000_000)
+    tags: str = Field(default='', max_length=1500)
+    cover_url: str = Field(default='', max_length=2000)
+    is_pinned: bool = False
+
+    @field_validator('title', 'content_md')
+    @classmethod
+    def not_blank(cls, value):
+        if not value.strip():
+            raise ValueError('标题和正文不能为空')
+        return value.strip()
+
+    @field_validator('tags')
+    @classmethod
+    def valid_tags(cls, value):
+        return normalize_tags(value)
+
+    @field_validator('cover_url')
+    @classmethod
+    def valid_cover(cls, value):
+        value = value.strip()
+        if not value:
+            return ''
+        parsed = urlsplit(value)
+        local = value.startswith('/uploads/') and not parsed.netloc and '..' not in value.split('/')
+        remote = parsed.scheme == 'https' and parsed.netloc and not parsed.username and not parsed.password
+        if not local and not remote:
+            raise ValueError('封面须为上传图片路径或HTTPS图片地址')
+        return value
+
+
+def create_app(storage_dir: str | Path | None = None, admin_token: str | None = None) -> FastAPI:
+    storage = Path(storage_dir or os.environ.get('STORAGE_DIR', BASE_DIR / 'storage')).resolve()
+    frontend = BASE_DIR / 'frontend'
+    token = os.environ.get('ADMIN_TOKEN', '') if admin_token is None else admin_token
+    max_upload = int(os.environ.get('MAX_UPLOAD_MB', '16')) * 1024 * 1024
+    if max_upload < 1:
+        raise ValueError('MAX_UPLOAD_MB must be positive')
+
+    @contextmanager
+    def connect():
+        db = sqlite3.connect(storage / 'archive.db', timeout=20)
+        db.row_factory = sqlite3.Row
+        db.execute('PRAGMA busy_timeout=20000')
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
+    def initialize():
+        storage.mkdir(parents=True, exist_ok=True)
+        (storage / 'uploads').mkdir(exist_ok=True)
+        with connect() as db:
+            db.execute('PRAGMA journal_mode=WAL')
+            db.execute('''CREATE TABLE IF NOT EXISTS posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL, sector TEXT NOT NULL,
+                excerpt TEXT NOT NULL DEFAULT '', content_md TEXT NOT NULL,
+                tags TEXT NOT NULL DEFAULT '', cover_url TEXT NOT NULL DEFAULT '',
+                word_count INTEGER NOT NULL DEFAULT 0, read_time INTEGER NOT NULL DEFAULT 1,
+                is_pinned INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            )''')
+            db.execute('CREATE INDEX IF NOT EXISTS posts_order ON posts(is_pinned DESC,id DESC)')
+            db.execute('CREATE INDEX IF NOT EXISTS posts_sector ON posts(sector)')
+
+    @asynccontextmanager
+    async def lifespan(app):
+        initialize()
+        yield
+
+    app = FastAPI(title='Lingxi Archive', version='1.0.0', lifespan=lifespan,
+                  docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.storage = storage
+
+    def require_admin(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+        if not token:
+            raise HTTPException(503, '管理接口尚未配置 ADMIN_TOKEN')
+        if not credentials or not secrets.compare_digest(credentials.credentials.encode(), token.encode()):
+            raise HTTPException(401, '管理口令无效', headers={'WWW-Authenticate': 'Bearer'})
+
+    @app.middleware('http')
+    async def security_headers(request: Request, call_next):
+        content_length = request.headers.get('content-length')
+        if content_length and (not content_length.isdigit() or int(content_length) > max_upload + 1024 * 1024):
+            return JSONResponse({'detail': '请求内容过大'}, status_code=413)
+        response = await call_next(request)
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; "
+            "connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        )
+        if request.url.path.startswith('/api/') or request.url.path in ('/admin.html', '/post.html', '/', '/index.html'):
+            response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.get('/api/health')
+    def health():
+        with connect() as db:
+            db.execute('SELECT 1').fetchone()
+        return {'status': 'ok', 'version': os.environ.get('RELEASE_ID') or ((BASE_DIR / 'RELEASE').read_text(encoding='utf-8').strip() if (BASE_DIR / 'RELEASE').is_file() else 'local')}
+
+    @app.get('/api/admin/auth', dependencies=[Depends(require_admin)])
+    def check_auth():
+        return {'authenticated': True}
+
+    @app.get('/api/telemetry')
+    def telemetry():
+        with connect() as db:
+            row = db.execute('''SELECT COUNT(*) AS total_docs,COALESCE(SUM(word_count),0) AS total_words,
+                MAX(updated_at) AS last_update,
+                COALESCE(SUM(sector='SEC_01'),0) AS sec1,COALESCE(SUM(sector='SEC_02'),0) AS sec2,
+                COALESCE(SUM(sector='SEC_03'),0) AS sec3,COALESCE(SUM(sector='SEC_04'),0) AS sec4 FROM posts''').fetchone()
+        return {'total_docs': row['total_docs'], 'total_words': row['total_words'],
+                'last_update': row['last_update'][:10].replace('-', '.') if row['last_update'] else None,
+                'sectors': dict(zip(SECTORS, [row['sec1'], row['sec2'], row['sec3'], row['sec4']]))}
+
+    @app.get('/api/posts')
+    def list_posts(sector: str = 'ALL', page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100),
+                   tag: str = Query('', max_length=48), q: str = Query('', max_length=200)):
+        if sector not in ('ALL', *SECTORS):
+            raise HTTPException(422, '无效的扇区')
+        conditions, args = [], []
+        if sector != 'ALL':
+            conditions.append('sector=?'); args.append(sector)
+        if tag.strip().lstrip('#'):
+            conditions.append("instr(',' || lower(tags) || ',', ',' || lower(?) || ',') > 0")
+            args.append(tag.strip().lstrip('#'))
+        if q.strip():
+            conditions.append('(instr(lower(title),lower(?))>0 OR instr(lower(excerpt),lower(?))>0)')
+            args.extend([q.strip(), q.strip()])
+        where = (' WHERE ' + ' AND '.join(conditions)) if conditions else ''
+        with connect() as db:
+            total = db.execute('SELECT COUNT(*) FROM posts' + where, args).fetchone()[0]
+            pages = max(1, math.ceil(total / limit)); actual = min(page, pages)
+            rows = db.execute(f'SELECT {SUMMARY_COLUMNS} FROM posts' + where + ' ORDER BY is_pinned DESC,id DESC LIMIT ? OFFSET ?',
+                              [*args, limit, (actual - 1) * limit]).fetchall()
+        return {'items': [dict(row) for row in rows], 'total': total, 'page': actual, 'limit': limit, 'pages': pages}
+
+    @app.get('/api/posts/{post_id}')
+    def get_post(post_id: int):
+        with connect() as db:
+            row = db.execute('SELECT * FROM posts WHERE id=?', (post_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, '文章不存在或已删除')
+            ordered = db.execute('SELECT id,title FROM posts ORDER BY is_pinned DESC,id DESC').fetchall()
+        result = dict(row)
+        position = next(i for i, item in enumerate(ordered) if item['id'] == post_id)
+        result['prev_post'] = dict(ordered[position - 1]) if position > 0 else None
+        result['next_post'] = dict(ordered[position + 1]) if position + 1 < len(ordered) else None
+        return result
+
+    def values(post: PostInput):
+        plain = text_from_markdown(post.content_md)
+        count = len(re.sub(r'\s', '', plain))
+        return (post.title, post.sector, post.excerpt.strip() or plain[:100], post.content_md,
+                post.tags, post.cover_url, count, max(1, math.ceil(count / 400)), int(post.is_pinned))
+
+    @app.post('/api/admin/posts', status_code=201, dependencies=[Depends(require_admin)])
+    def create_post(post: PostInput):
+        now = timestamp()
+        with connect() as db:
+            cursor = db.execute('''INSERT INTO posts(title,sector,excerpt,content_md,tags,cover_url,word_count,read_time,is_pinned,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)''', (*values(post), now, now))
+            post_id = cursor.lastrowid
+        return get_post(post_id)
+
+    @app.put('/api/admin/posts/{post_id}', dependencies=[Depends(require_admin)])
+    def update_post(post_id: int, post: PostInput):
+        with connect() as db:
+            cursor = db.execute('''UPDATE posts SET title=?,sector=?,excerpt=?,content_md=?,tags=?,cover_url=?,word_count=?,read_time=?,is_pinned=?,updated_at=? WHERE id=?''',
+                                (*values(post), timestamp(), post_id))
+            if cursor.rowcount == 0:
+                raise HTTPException(404, '文章不存在或已删除')
+        return get_post(post_id)
+
+    @app.delete('/api/admin/posts/{post_id}', status_code=204, dependencies=[Depends(require_admin)])
+    def delete_post(post_id: int):
+        with connect() as db:
+            cursor = db.execute('DELETE FROM posts WHERE id=?', (post_id,))
+            if cursor.rowcount == 0:
+                raise HTTPException(404, '文章不存在或已删除')
+        return Response(status_code=204)
+
+    @app.post('/api/admin/upload', status_code=201, dependencies=[Depends(require_admin)])
+    async def upload(file: UploadFile = File(...)):
+        extension = Path(file.filename or '').suffix.lower()
+        if extension not in ALLOWED_EXTENSIONS:
+            raise HTTPException(415, '仅支持 PNG、JPG、WEBP、GIF 图片')
+        data = bytearray()
+        try:
+            while chunk := await file.read(64 * 1024):
+                data.extend(chunk)
+                if len(data) > max_upload:
+                    raise HTTPException(413, f'图片最大 {max_upload // 1024 // 1024} MB')
+        finally:
+            await file.close()
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('error', Image.DecompressionBombWarning)
+                with Image.open(BytesIO(data)) as image:
+                    actual_format = image.format
+                    image.verify()
+            if actual_format not in IMAGE_TYPES:
+                raise ValueError('Unsupported image')
+            expected = IMAGE_TYPES[actual_format]
+            if extension != expected and not (extension == '.jpeg' and expected == '.jpg'):
+                raise ValueError('File extension does not match content')
+        except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+            raise HTTPException(415, '图片内容损坏、尺寸过大或与扩展名不符')
+        now = datetime.now(TZ)
+        directory = storage / 'uploads' / now.strftime('%Y/%m')
+        directory.mkdir(parents=True, exist_ok=True)
+        name = f'IMG_{now:%Y%m%d}_{secrets.token_hex(12)}{expected}'
+        destination = directory / name
+        try:
+            with destination.open('xb') as output:
+                output.write(data)
+        except OSError:
+            raise HTTPException(500, '图片保存失败，请检查存储空间和目录权限')
+        return {'url': f'/uploads/{now:%Y/%m}/{name}'}
+
+    @app.get('/rss.xml')
+    def rss(request: Request):
+        site = os.environ.get('SITE_URL', str(request.base_url)).rstrip('/')
+        document = ET.Element('rss', version='2.0'); channel = ET.SubElement(document, 'channel')
+        for key, value in [('title', '灵犀日志归档库'), ('link', site), ('description', '最新归档日志')]:
+            ET.SubElement(channel, key).text = value
+        with connect() as db:
+            rows = db.execute(f'SELECT {SUMMARY_COLUMNS} FROM posts ORDER BY id DESC LIMIT 50').fetchall()
+        for row in rows:
+            item = ET.SubElement(channel, 'item')
+            ET.SubElement(item, 'title').text = row['title']
+            url = f'{site}/post.html?id={row["id"]}'
+            ET.SubElement(item, 'link').text = url
+            ET.SubElement(item, 'guid', isPermaLink='true').text = url
+            ET.SubElement(item, 'description').text = row['excerpt']
+        return Response(ET.tostring(document, encoding='utf-8', xml_declaration=True), media_type='application/rss+xml')
+
+    # Directory is created during lifespan, not copied into each release.
+    app.mount('/uploads', StaticFiles(directory=storage / 'uploads', check_dir=False), name='uploads')
+    app.mount('/', StaticFiles(directory=frontend, html=True), name='frontend')
+    return app
+
+
+app = create_app()

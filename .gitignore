@@ -17,3 +17,15 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.log
+
+# Persistent runtime data and local Python environments
+storage/
+shared/
+backups/
+.venv/
+.ci-venv/
+.ui-storage/
+.test-run-*/
+*.db
+*.db-wal
+*.db-shm

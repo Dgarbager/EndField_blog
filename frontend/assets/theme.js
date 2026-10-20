@@ -43,7 +43,9 @@
       button.setAttribute('aria-pressed',String(selected));
     });
     document.querySelectorAll('.ef-avatar, .ef-infobar-avatar').forEach(image => {image.src=`./assets/avatar-${valid}.svg`;});
-    document.querySelectorAll('.ef-thumb-img').forEach(image => {image.src=`./assets/cnc-toolpath-${valid}.svg`;});
+    document.querySelectorAll('.ef-thumb-img[data-theme-illustration]').forEach(image => {image.src=`./assets/cnc-toolpath-${valid}.svg`;});
+    const codeStyle = document.getElementById('code-theme');
+    if (codeStyle) codeStyle.href = `./assets/vendor/highlight-${valid === 'day' ? 'day' : 'dark'}.css`;
     if (persist) {try {localStorage.setItem(key,valid);} catch (_) { /* Continue without persistence. */ }}
     if (animate) feedback();
   }

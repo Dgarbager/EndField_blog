@@ -1,4 +1,4 @@
-name: Validate and deploy static blog
+name: Validate and deploy Lingxi full-stack blog
 
 on:
   push:
@@ -21,15 +21,22 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Validate site files
-        run: python3 scripts/validate_site.py
+      - name: Install isolated test dependencies
+        run: |
+          python3 -m venv .ci-venv
+          .ci-venv/bin/python -m pip install -r tests/requirements.txt
+      - name: Validate frontend and backend
+        run: |
+          .ci-venv/bin/python scripts/validate_site.py
+          .ci-venv/bin/python -m pytest -q
+          .ci-venv/bin/python scripts/prepare_site.py
       - name: Check JavaScript syntax
         run: |
-          for file in public/assets/*.js; do node --check "$file"; done
+          for file in frontend/assets/*.js; do node --check "$file"; done
 
   deploy:
     needs: validate
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' && vars.BACKEND_READY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -75,7 +82,7 @@ jobs:
           fi
           mkdir -p "$base/releases"
           REMOTE
-          tar -czf "$RUNNER_TEMP/blog-site.tar.gz" -C dist .
+          cp dist/blog-release.tar.gz "$RUNNER_TEMP/blog-site.tar.gz"
           scp "${ssh_opts[@]}" -P "$SSH_PORT" "$RUNNER_TEMP/blog-site.tar.gz" "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/releases/$RELEASE_ID.tar.gz"
           ssh "${ssh_opts[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash -s -- '$DEPLOY_PATH' '$RELEASE_ID'" <<'REMOTE'
           set -euo pipefail
@@ -85,8 +92,7 @@ jobs:
           if [ -e "$base/current" ] && [ ! -L "$base/current" ]; then exit 1; fi
           mkdir -p "$release"
           tar -xzf "$base/releases/$release_id.tar.gz" -C "$release"
-          test -f "$release/index.html"
-          ln -s "$release" "$base/.current-$release_id"
-          mv -Tf "$base/.current-$release_id" "$base/current"
-          printf 'Published release %s\n' "$release_id"
+          test -f "$release/backend/main.py"
+          test -f "$release/frontend/index.html"
+          bash "$release/scripts/activate_release.sh" "$base" "$release_id"
           REMOTE
