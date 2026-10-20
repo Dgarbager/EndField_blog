@@ -1,0 +1,19 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.ssh/
+# Generated output and caches
+dist/
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,277 @@
+/* =========================================================
+   DUAL-VIEW ARCHITECTURE (双视图状态机：开屏看板 <-> 文章列表)
+   ========================================================= */
+
+.terminal-app {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* 视图容器通用控制 */
+.ef-view {
+  display: none;
+}
+
+.ef-view.is-active {
+  display: block;
+  animation: ef-view-switch-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes ef-view-switch-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+    filter: brightness(1.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* VIEW 01: 让开屏数据看板在视口内垂直居中，像一台独立工程终端 */
+.ef-view-terminal.is-active {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 0;
+  box-sizing: border-box;
+}
+
+.ef-view-terminal .ef-hero-terminal {
+  margin-bottom: 0;
+  width: 100%;
+}
+
+/* 兼容将 a 标签改为 button 后的样式重置 */
+button.ef-btn,
+button.ef-sector-card {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.ef-btn {
+  border: none;
+}
+
+button.ef-btn-ghost {
+  border: 1px solid var(--ef-border-color);
+}
+
+/* =========================================================
+   VIEW 02: 文章界面顶部基础信息栏 (Compact Telemetry Infobar)
+   ========================================================= */
+
+.ef-view-archive.is-active {
+  padding: 1.5rem 0 4rem 0;
+}
+
+.ef-archive-infobar {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 30;
+  background: var(--ef-bg-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ef-border-color);
+  border-top: 2px solid var(--ef-accent);
+  padding: 0.7rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 10px 30px var(--ef-shadow);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%
+  );
+}
+
+.ef-infobar-brand {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+/* 返回开屏看板按钮 */
+.ef-back-terminal-btn {
+  background: var(--ef-bg-elevated);
+  color: var(--ef-accent);
+  border: 1px solid var(--ef-accent-soft);
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  transition: all 0.18s var(--ef-ease-mech);
+}
+
+.ef-back-terminal-btn:hover {
+  background: var(--ef-accent);
+  color: var(--ef-accent-contrast);
+  border-color: var(--ef-accent);
+}
+
+.ef-back-icon {
+  font-size: 0.9rem;
+  transition: transform 0.18s var(--ef-ease-mech);
+}
+
+.ef-back-terminal-btn:hover .ef-back-icon {
+  transform: translate(-2px, -2px);
+}
+
+.ef-infobar-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.ef-infobar-avatar {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--ef-border-color);
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+}
+
+.ef-infobar-title {
+  font-family: var(--ef-font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.ef-infobar-sub {
+  color: var(--ef-text-muted);
+  font-size: 0.62rem;
+  margin-top: 2px;
+}
+
+/* 顶部右侧浓缩遥测指标 */
+.ef-infobar-metrics {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.ef-mini-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+}
+
+.ef-mini-metric .ef-dim {
+  color: var(--ef-text-muted);
+}
+
+.ef-mini-metric strong {
+  color: var(--ef-text-main);
+}
+
+.ef-mini-metric .ef-accent-val {
+  color: var(--ef-accent);
+}
+
+/* 二级分类过滤工具栏 */
+.ef-feed-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--ef-bg-base);
+  border: 1px solid var(--ef-border-color);
+  border-left: 3px solid var(--ef-accent);
+  margin-bottom: 1rem;
+}
+
+/* 卡片过滤隐藏态 */
+.ef-post-card.is-filtered-out {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .ef-infobar-metrics {
+    width: 100%;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--ef-border-color);
+    justify-content: space-between;
+  }
+}
+
+
+/* 双视图只显示当前界面；窄屏或低视口允许纵向滚动。 */
+[hidden] { display: none !important; }
+.terminal-app { max-width: 1280px; padding: 0 clamp(12px, 3vw, 40px); }
+.ef-view-terminal.is-active { min-height: 100svh; padding: 28px 0; }
+.ef-view.is-active { animation: none; }
+.ef-view-archive.is-active { animation: ef-view-switch-in .3s var(--ef-ease-mech); }
+.ef-view-archive { min-height: 100svh; }
+.ef-view-terminal .ef-terminal-grid { grid-template-columns: 1.25fr 1fr; }
+.ef-view-terminal .ef-sector-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+button.ef-sector-card { min-width: 0; }
+.ef-action-bar .ef-btn-primary { font-size: .75rem; line-height: 1.7; }
+.ef-terminal-status { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--ef-text-muted); margin-top: 14px; }
+.ef-view-terminal .ef-preview-note { margin-top: 8px; font-size: .65rem; }
+.ef-view-terminal .ef-profile-panel { gap: 0; }
+.ef-blog-stats { margin-top: auto; }
+.ef-archive-infobar { top: 10px; }
+.ef-infobar-brand { flex-wrap: wrap; }
+.ef-infobar-title .ef-subname { display: inline; font-size: .8rem; }
+.ef-infobar-metrics .ef-mini-metric { line-height: 1.8; }
+.ef-feed-toolbar { gap: 16px; }
+.ef-feed-toolbar .ef-subname { display: inline; font-size: .85rem; }
+.ef-view-archive .ef-selection { margin-top: 18px; }
+.ef-archive-infobar .ef-divider { color: var(--ef-text-muted); }
+.ef-random-highlight { border-color: var(--ef-accent); box-shadow: inset 0 0 0 1px var(--ef-accent); }
+.ef-random-highlight .ef-spine-num { color: var(--ef-accent); }
+.ef-post-card.is-entering { animation: ef-log-in .4s var(--ef-ease-mech) both; animation-delay: calc(var(--post-index,0) * .06s); }
+.ef-hero-terminal.is-closing { animation: ef-shutter-close .18s ease-in both; }
+@keyframes ef-shutter-close {
+ from { clip-path: polygon(0 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%); }
+ to { clip-path: polygon(0 49.7%,100% 49.7%,100% 50.3%,calc(100% - 18px) 50.3%,0 50.3%); filter: brightness(1.5); }
+}
+@media (min-width: 1000px) and (min-height: 700px) {
+ .ef-view-terminal .ef-panel { padding: 1.35rem; }
+ .ef-view-terminal .ef-profile-header { margin-bottom: 1rem; }
+ .ef-view-terminal .ef-bio-box { padding: .8rem 1rem; }
+}
+@media (max-width: 759px) {
+ .ef-view-terminal .ef-terminal-grid { grid-template-columns: 1fr; }
+ .ef-view-terminal .ef-sector-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .ef-view-terminal .ef-blog-stats { margin-top: 0; }
+ .ef-infobar-metrics { width: 100%; padding-top: 8px; border-top: 1px dashed var(--ef-border-color); }
+}
+@media (max-width: 600px) {
+ .ef-view-terminal.is-active { padding: 16px 0; }
+ .ef-view-terminal .ef-sector-grid { grid-template-columns: 1fr; }
+ .ef-archive-infobar { padding: 12px; gap: 12px; }
+ .ef-infobar-brand { gap: 12px; }
+ .ef-infobar-metrics { gap: 6px 12px; }
+ .ef-infobar-metrics > .ef-divider { display: none; }
+ .ef-infobar-metrics .ef-mini-metric { flex-wrap: wrap; }
+ .ef-back-terminal-btn { width: 100%; }
+ .ef-feed-toolbar { padding: 14px 12px; }
+ .ef-feed-title-group { gap: 8px; }
+ .ef-feed-toolbar .ef-subname { display: block; line-height: 1.7; }
+ .ef-terminal-status { flex-wrap: wrap; font-size: .65rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+ *, *::before, *::after { animation: none !important; transition: none !important; }
+ .ef-hero-terminal.is-closing { clip-path: polygon(0 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%); }
+ .ef-post-card.is-entering { opacity: 1; transform: none; }
+}
+
+@media (min-width: 760px) and (max-width: 999px) { .ef-view-terminal .ef-panel { padding: 18px; } .ef-view-terminal .ef-name { font-size: 1.35rem; } .ef-view-terminal .ef-blog-stats .ef-stat-cell { padding: 10px 8px; } .ef-view-terminal .ef-stat-label { font-size: .58rem; } }

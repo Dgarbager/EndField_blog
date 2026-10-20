@@ -1,0 +1,92 @@
+name: Validate and deploy static blog
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Validate site files
+        run: python3 scripts/validate_site.py
+      - name: Check JavaScript syntax
+        run: |
+          for file in public/assets/*.js; do node --check "$file"; done
+
+  deploy:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Prepare site and publish a release over SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS SSH_PORT DEPLOY_PATH SITE_URL; do
+            if [ -z "${!name}" ]; then echo "::error::Missing setting: $name"; exit 1; fi
+          done
+          [[ "$SSH_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || { echo 'Invalid SSH host'; exit 1; }
+          [[ "$SSH_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || { echo 'Invalid SSH user'; exit 1; }
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] && (( SSH_PORT > 0 && SSH_PORT < 65536 )) || { echo 'Invalid SSH port'; exit 1; }
+          [[ "$DEPLOY_PATH" =~ ^(/[A-Za-z0-9_.-]+){2,}$ ]] || { echo 'Use an absolute dedicated site path, e.g. /srv/www/blog'; exit 1; }
+          case "$DEPLOY_PATH/" in *'/../'*|*'/./'*) echo 'Invalid deployment path'; exit 1;; esac
+          python3 scripts/prepare_site.py
+          RELEASE_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          export RELEASE_ID
+          key_file="$RUNNER_TEMP/blog_deploy_key"
+          known_hosts="$RUNNER_TEMP/blog_known_hosts"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key_file"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$known_hosts"
+          unset SSH_PRIVATE_KEY SSH_KNOWN_HOSTS
+          trap 'rm -f "$key_file" "$known_hosts"' EXIT
+          ssh_opts=(-i "$key_file" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts")
+          ssh "${ssh_opts[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash -s -- '$DEPLOY_PATH'" <<'REMOTE'
+          set -euo pipefail
+          base="$1"
+          if [ -e "$base/current" ] && [ ! -L "$base/current" ]; then
+            echo 'current already exists as a regular file/directory; refusing to replace it'; exit 1
+          fi
+          mkdir -p "$base/releases"
+          REMOTE
+          tar -czf "$RUNNER_TEMP/blog-site.tar.gz" -C dist .
+          scp "${ssh_opts[@]}" -P "$SSH_PORT" "$RUNNER_TEMP/blog-site.tar.gz" "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/releases/$RELEASE_ID.tar.gz"
+          ssh "${ssh_opts[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash -s -- '$DEPLOY_PATH' '$RELEASE_ID'" <<'REMOTE'
+          set -euo pipefail
+          base="$1"
+          release_id="$2"
+          release="$base/releases/$release_id"
+          if [ -e "$base/current" ] && [ ! -L "$base/current" ]; then exit 1; fi
+          mkdir -p "$release"
+          tar -xzf "$base/releases/$release_id.tar.gz" -C "$release"
+          test -f "$release/index.html"
+          ln -s "$release" "$base/.current-$release_id"
+          mv -Tf "$base/.current-$release_id" "$base/current"
+          printf 'Published release %s\n' "$release_id"
+          REMOTE

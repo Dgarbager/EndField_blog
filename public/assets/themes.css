@@ -1,0 +1,164 @@
+/* =========================================================
+   1. THREE-MODE COLOR TOKENS (三色阵营动态变量系统)
+   ========================================================= */
+
+:root,
+[data-theme="night"] {
+  /* 模式 1：终末地·极夜终端 (Dark Carbon + Industrial Yellow) */
+  --ef-page-bg: #0B0C0E;
+  --ef-bg-base: #111317;
+  --ef-bg-panel: #181B20;
+  --ef-bg-elevated: #20242B;
+  --ef-bg-glass: rgba(17, 19, 23, 0.92);
+  --ef-border-color: rgba(255, 255, 255, 0.12);
+  --ef-grid-dot: rgba(255, 255, 255, 0.045);
+  --ef-text-main: #F3F4F6;
+  --ef-text-muted: #8E95A2;
+  --ef-accent: #FFD000;
+  --ef-accent-soft: rgba(255, 208, 0, 0.32);
+  --ef-accent-contrast: #0D0E11;
+  --ef-online-green: #00E5A3;
+  --ef-watermark-stroke: rgba(255, 255, 255, 0.05);
+  --ef-bio-bg: rgba(0, 0, 0, 0.28);
+  --ef-bar-inactive: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="day"] {
+  /* 模式 2：终末地·白昼工程 (Clinical Grey-White + Hazard Yellow & Charcoal) */
+  --ef-page-bg: #E4E7EC;
+  --ef-bg-base: #EBEEF2;
+  --ef-bg-panel: #F7F8FA;
+  --ef-bg-elevated: #FFFFFF;
+  --ef-bg-glass: rgba(247, 248, 250, 0.92);
+  --ef-border-color: rgba(17, 19, 23, 0.15);
+  --ef-grid-dot: rgba(17, 19, 23, 0.06);
+  --ef-text-main: #111317;
+  --ef-text-muted: #5A6270;
+  --ef-accent: #F5B800;
+  --ef-accent-soft: rgba(245, 184, 0, 0.45);
+  --ef-accent-contrast: #111317;
+  --ef-online-green: #00A870;
+  --ef-watermark-stroke: rgba(17, 19, 23, 0.06);
+  --ef-bio-bg: rgba(17, 19, 23, 0.04);
+  --ef-bar-inactive: rgba(17, 19, 23, 0.12);
+}
+
+[data-theme="wuling"] {
+  /* 模式 3：宏山/武陵·新中式重工 (Basalt Slate + Tactical Jade Cyan) */
+  --ef-page-bg: #0A1012;
+  --ef-bg-base: #10171A;
+  --ef-bg-panel: #162025;
+  --ef-bg-elevated: #1E2B31;
+  --ef-bg-glass: rgba(16, 23, 26, 0.92);
+  --ef-border-color: rgba(0, 229, 184, 0.16);
+  --ef-grid-dot: rgba(0, 229, 184, 0.055);
+  --ef-text-main: #E6F2F0;
+  --ef-text-muted: #7C9996;
+  --ef-accent: #00E5B8;
+  --ef-accent-soft: rgba(0, 229, 184, 0.32);
+  --ef-accent-contrast: #081210;
+  --ef-online-green: #FFD000;
+  --ef-watermark-stroke: rgba(0, 229, 184, 0.055);
+  --ef-bio-bg: rgba(6, 12, 14, 0.4);
+  --ef-bar-inactive: rgba(0, 229, 184, 0.12);
+}
+
+
+.ef-theme-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ef-theme-label {
+  color: var(--ef-text-muted);
+  margin-right: 0.15rem;
+}
+
+.ef-theme-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ef-text-muted);
+  font-family: var(--ef-font-mono);
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s var(--ef-ease-mech);
+}
+
+.ef-theme-btn:hover {
+  color: var(--ef-text-main);
+  border-color: var(--ef-border-color);
+}
+
+.ef-theme-btn.active {
+  background: var(--ef-accent);
+  color: var(--ef-accent-contrast);
+  border-color: var(--ef-accent);
+  font-weight: 700;
+}
+
+
+
+:root, [data-theme="night"] {
+  color-scheme: dark;
+  --ef-accent-ink: #FFD000;
+  --ef-hover-tint: rgba(255,208,0,.07);
+  --ef-shadow: rgba(0,0,0,.55);
+  --ef-backdrop: rgba(0,0,0,.8);
+}
+[data-theme="day"] {
+  color-scheme: light;
+  --ef-accent-ink: #795500;
+  --ef-hover-tint: rgba(245,184,0,.09);
+  --ef-shadow: rgba(17,19,23,.12);
+  --ef-backdrop: rgba(34,40,49,.4);
+  --ef-online-green: #00764F;
+}
+[data-theme="wuling"] {
+  color-scheme: dark;
+  --ef-accent-ink: #00E5B8;
+  --ef-hover-tint: rgba(0,229,184,.07);
+  --ef-shadow: rgba(0,10,12,.55);
+  --ef-backdrop: rgba(2,12,14,.85);
+}
+body { background: var(--ef-page-bg); transition: background-color .22s ease, color .22s ease; }
+.ef-theme-switcher { flex-wrap: wrap; max-width: 100%; }
+.ef-theme-btn { min-height: 28px; white-space: nowrap; }
+.ef-theme-label { font-size: .65rem; }
+.ef-terminal-topbar { flex-wrap: wrap; gap: 10px; }
+.ef-topbar-right { flex-wrap: wrap; justify-content: flex-end; }
+.ef-theme-btn:focus-visible, a:focus-visible, button:focus-visible { outline-color: var(--ef-accent-ink); }
+.ef-uid, .ef-big-number, .ef-stat-date, .ef-stat-val small, .ef-post-cat,
+.ef-back-terminal-btn, .ef-mini-metric .ef-accent-val { color: var(--ef-accent-ink); }
+.ef-btn-ghost:hover { color: var(--ef-accent-ink); }
+.ef-post-card:hover .ef-post-title a, .ef-post-card:hover .ef-spine-num,
+.ef-post-card.is-pinned .ef-spine-num, .ef-post-card:focus-within .ef-spine-num,
+.ef-random-highlight .ef-spine-num { color: var(--ef-accent-ink); }
+.ef-post-tags button:hover, .ef-post-tags button.active { color: var(--ef-accent-ink); }
+.ef-log-dialog-bar { color: var(--ef-accent-ink); }
+.ef-back-terminal-btn:hover { color: var(--ef-accent-contrast); }
+.ef-panel, .ef-post-body, .ef-stat-cell, .ef-pagination, .ef-feed-toolbar { transition: background-color .22s ease, color .22s ease, border-color .22s ease; }
+.ef-archive-infobar { background: var(--ef-bg-glass); }
+.ef-watermark { -webkit-text-stroke-color: var(--ef-watermark-stroke); }
+.ef-spine-num { color: var(--ef-text-muted); opacity: .5; }
+.ef-post-card:hover .ef-spine-num, .ef-post-card.is-pinned .ef-spine-num { opacity: 1; }
+.ef-sector-card::after, .ef-hero-terminal::after { background: var(--ef-border-color); }
+.ef-panel::after { box-shadow: 0 0 12px 2px var(--ef-accent-soft); }
+.ef-infobar-metrics { gap: 10px 14px; }
+.ef-infobar-metrics .ef-theme-switcher { margin-left: auto; }
+@media (min-width: 760px) and (max-width: 1100px) {
+ .ef-terminal-topbar { align-items: flex-start; }
+ .ef-topbar-right { width: 100%; justify-content: space-between; gap: 8px; }
+ .ef-theme-btn { font-size: .62rem; padding: 2px 4px; }
+}
+@media (max-width: 600px) {
+ .ef-topbar-right { justify-content: flex-start; }
+ .ef-theme-switcher { gap: 4px; }
+ .ef-theme-btn { font-size: .65rem; padding: 3px 5px; }
+ .ef-infobar-metrics .ef-theme-switcher { margin-left: 0; flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+.ef-infobar-metrics { justify-content: flex-start; }
+.ef-infobar-metrics .ef-theme-switcher { margin-left: 0; order: 1; }
+.ef-post-card:focus-within .ef-spine-num, .ef-random-highlight .ef-spine-num { opacity: 1; }

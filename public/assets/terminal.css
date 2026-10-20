@@ -1,0 +1,737 @@
+:root {
+  /* 终末地·极夜重工配色 Token（可随时切换为白昼工程或武陵青） */
+  --ef-bg-base: #111317;
+  --ef-bg-panel: #181B20;
+  --ef-bg-elevated: #20242B;
+  --ef-border-color: rgba(255, 255, 255, 0.12);
+  --ef-text-main: #F3F4F6;
+  --ef-text-muted: #8E95A2;
+  --ef-accent: #FFD000;          /* 标志性工业警示黄 */
+  --ef-accent-contrast: #0D0E11; /* 高亮块上的反转深色字 */
+  --ef-online-green: #00E5A3;
+  --ef-ease-mech: cubic-bezier(0.16, 1, 0.3, 1);
+  --ef-font-mono: 'JetBrains Mono', 'Consolas', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', monospace;
+  --ef-font-display: 'Chakra Petch', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* 终端外框总容器：右下角 18px 机械切角 */
+.ef-hero-terminal {
+  background-color: var(--ef-bg-base);
+  border: 1px solid var(--ef-border-color);
+  color: var(--ef-text-main);
+  margin-bottom: 2rem;
+  clip-path: polygon(
+    0 0, 
+    100% 0, 
+    100% calc(100% - 18px), 
+    calc(100% - 18px) 100%, 
+    0 100%
+  );
+  position: relative;
+}
+
+.ef-mono-label {
+  font-family: var(--ef-font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+/* 顶部遥测横幅 */
+.ef-terminal-topbar {
+  background: var(--ef-bg-base);
+  padding: 0.5rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--ef-border-color);
+}
+
+.ef-topbar-left, .ef-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ef-text-muted);
+}
+
+.ef-status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--ef-accent);
+  box-shadow: 0 0 8px var(--ef-accent);
+  animation: ef-blink 2.4s infinite;
+}
+
+/* 核心网格：利用 1px gap 露出底层分割线 */
+.ef-terminal-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 1px;
+  background-color: var(--ef-border-color);
+}
+
+.ef-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ef-panel {
+  background-color: var(--ef-bg-panel);
+  /* 叠加微弱的工业点阵网格纹理 */
+  background-image: radial-gradient(var(--ef-grid-dot) 1px, transparent 1px);
+  background-size: 16px 16px;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 四角准星 L 型折角装饰 */
+.ef-reticle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--ef-accent);
+  pointer-events: none;
+}
+.ef-reticle.tl { top: 10px; left: 10px; border-top: 2px solid var(--ef-accent); border-left: 2px solid var(--ef-accent); }
+.ef-reticle.br { bottom: 10px; right: 10px; border-bottom: 2px solid var(--ef-accent); border-right: 2px solid var(--ef-accent); }
+.ef-reticle.tr { top: 10px; right: 10px; border-top: 2px solid var(--ef-accent); border-right: 2px solid var(--ef-accent); }
+.ef-reticle.bl { bottom: 10px; left: 10px; border-bottom: 2px solid var(--ef-accent); border-left: 2px solid var(--ef-accent); }
+
+/* 背景巨型半透明水印 */
+.ef-watermark {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  font-family: var(--ef-font-display);
+  font-size: 5rem;
+  font-weight: 900;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--ef-watermark-stroke);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+/* 左侧个人档案舱 */
+.ef-profile-header {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.ef-avatar-wrapper {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  padding: 3px;
+  border: 1px solid var(--ef-border-color);
+}
+
+.ef-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+.ef-avatar-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 6px;
+  z-index: 2;
+  background: var(--ef-accent);
+  color: var(--ef-accent-contrast);
+  font-family: var(--ef-font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+}
+
+.ef-uid { color: var(--ef-accent); margin-bottom: 0.25rem; }
+
+.ef-name {
+  font-family: var(--ef-font-display);
+  font-size: 1.65rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: 0.02em;
+}
+
+.ef-subname {
+  font-size: 1rem;
+  color: var(--ef-text-muted);
+  font-weight: 500;
+}
+
+.ef-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ef-mini-tag {
+  font-family: var(--ef-font-mono);
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: var(--ef-bg-elevated);
+  border-left: 2px solid var(--ef-accent);
+  color: var(--ef-text-muted);
+}
+
+.ef-bio-box {
+  margin: 0 0 1.5rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--ef-bio-bg);
+  border-left: 3px solid var(--ef-accent);
+}
+
+.ef-bio-text {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.ef-bio-meta { color: var(--ef-text-muted); }
+
+/* 切角战术按钮 */
+.ef-action-bar {
+  margin-top: auto;
+  padding-top: 1rem;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ef-btn {
+  text-decoration: none;
+  padding: 0.55rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.18s var(--ef-ease-mech);
+}
+
+.ef-btn-primary {
+  background: var(--ef-accent);
+  color: var(--ef-accent-contrast);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+}
+
+.ef-btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.ef-btn-ghost {
+  background: var(--ef-bg-elevated);
+  color: var(--ef-text-main);
+  border: 1px solid var(--ef-border-color);
+}
+
+.ef-btn-ghost:hover {
+  border-color: var(--ef-accent);
+  color: var(--ef-accent);
+}
+
+/* 右上区：站点运行天数面板 */
+.ef-panel-title-bar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px dashed var(--ef-border-color);
+  color: var(--ef-text-muted);
+}
+
+.ef-accent-text { color: var(--ef-online-green); }
+
+.ef-uptime-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1rem;
+}
+
+.ef-big-number {
+  font-family: var(--ef-font-display);
+  font-size: 3.2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ef-accent);
+  margin-right: 0.4rem;
+}
+
+.ef-unit-label { color: var(--ef-text-muted); }
+
+.ef-time-block {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ef-hms-val {
+  color: var(--ef-text-main);
+  font-weight: 700;
+  margin-left: 0.5rem;
+}
+
+/* 分段信号刻度条 */
+.ef-telemetry-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ef-text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.ef-segmented-bar {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 3px;
+  height: 6px;
+}
+
+.ef-segmented-bar i {
+  background: var(--ef-bar-inactive);
+  display: block;
+}
+
+.ef-segmented-bar i.active { background: var(--ef-accent); }
+.ef-segmented-bar i.pulse {
+  background: var(--ef-accent);
+  animation: ef-blink 1.2s infinite;
+}
+
+/* 右下区：分类扇区矩阵与机械快门动效 */
+.ef-sectors-panel { flex: 1; }
+
+.ef-sector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+}
+
+.ef-sector-card {
+  position: relative;
+  text-decoration: none;
+  background: var(--ef-bg-elevated);
+  border: 1px solid var(--ef-border-color);
+  border-left: 2px solid var(--ef-accent-soft);
+  padding: 0.75rem 0.85rem;
+  color: var(--ef-text-main);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+  /* 核心：利用线性渐变背景实现从左向右的机械快门横扫填充 */
+  background-image: linear-gradient(90deg, var(--ef-accent) 0%, var(--ef-accent) 100%);
+  background-size: 0% 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.2s var(--ef-ease-mech), color 0.15s ease;
+}
+
+.ef-sector-card:hover {
+  background-size: 100% 100%;
+  color: var(--ef-accent-contrast);
+  border-color: var(--ef-accent);
+}
+
+.ef-sector-top {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ef-text-muted);
+  margin-bottom: 0.25rem;
+  transition: color 0.15s ease;
+}
+
+.ef-sector-name {
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 0.35rem 0;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+}
+
+.ef-sector-meta {
+  color: var(--ef-text-muted);
+  font-size: 0.68rem;
+  transition: color 0.15s ease;
+}
+
+.ef-sector-card:hover .ef-sector-top,
+.ef-sector-card:hover .ef-sector-meta {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.ef-sector-arrow {
+  transition: transform 0.2s var(--ef-ease-mech);
+}
+
+.ef-sector-card:hover .ef-sector-arrow {
+  transform: translate(3px, -3px);
+}
+
+/* 底部斜纹警示栏 */
+.ef-terminal-footer {
+  background: var(--ef-bg-base);
+  padding: 0.4rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-top: 1px solid var(--ef-border-color);
+}
+
+.ef-hazard-stripe {
+  flex: 1;
+  height: 6px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--ef-accent),
+    var(--ef-accent) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+  opacity: 0.75;
+}
+
+.ef-footer-code { color: var(--ef-text-muted); font-size: 0.68rem; }
+
+@keyframes ef-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* 移动端响应式折叠 */
+@media (max-width: 860px) {
+  .ef-terminal-grid { grid-template-columns: 1fr; }
+  .ef-sector-grid { grid-template-columns: 1fr; }
+}
+/* 独立预览页面的基础布局 */
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--ef-page-bg); color: var(--ef-text-main); font-family: "Microsoft YaHei", system-ui, sans-serif; }
+.terminal-page { width: min(1280px, 100%); margin: 0 auto; padding: clamp(16px, 4vw, 64px) clamp(12px, 3vw, 40px); }
+.ef-hero-terminal { margin-bottom: 0; }
+.ef-profile-panel { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
+.ef-identity, .ef-right-column { min-width: 0; }
+.ef-name { overflow-wrap: anywhere; }
+.ef-bio-meta { line-height: 1.8; }
+a:focus-visible { outline: 2px solid var(--ef-accent); outline-offset: 4px; }
+@media (max-width: 600px) {
+  .ef-terminal-topbar { align-items: flex-start; flex-direction: column; gap: 10px; padding: 14px; }
+  .ef-topbar-right { flex-wrap: wrap; }
+  .ef-panel { padding: 20px 16px; }
+  .ef-profile-header { align-items: flex-start; gap: 12px; }
+  .ef-avatar-wrapper { width: 64px; height: 64px; }
+  .ef-name { font-size: 1.3rem; }
+  .ef-subname { display: block; margin-top: 6px; font-size: .85rem; }
+  .ef-uid { font-size: .6rem; }
+  .ef-panel-title-bar { gap: 10px; flex-wrap: wrap; }
+  .ef-uptime-display { gap: 16px; flex-wrap: wrap; }
+  .ef-terminal-footer { flex-direction: column; align-items: stretch; padding: 12px 16px; }
+  .ef-hazard-stripe { flex: none; }
+  .ef-footer-code { line-height: 1.6; overflow-wrap: anywhere; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* 补齐裁切位置的斜角描边，不影响交互。 */
+.ef-hero-terminal::after, .ef-sector-card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  height: 1px;
+  background: var(--ef-text-muted);
+  transform: rotate(-45deg);
+  transform-origin: center;
+}
+.ef-hero-terminal::after { width: 26px; right: -4px; bottom: 8px; }
+.ef-sector-card::after { width: 15px; right: -3px; bottom: 4px; }
+.ef-sector-card:hover::after { background: var(--ef-accent); }
+.ef-btn-primary { position: relative; }
+.ef-btn-primary::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 1px;
+  right: -2px;
+  bottom: 3px;
+  background: var(--ef-accent);
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+.ef-profile-content { position: relative; z-index: 1; }
+
+/* =========================================================
+   ENDFIELD BOOT-UP ANIMATION SEQUENCE (开屏自检动画系统)
+   ========================================================= */
+
+/* 1. 终端主容器：初始折叠态 -> 机械展开态 */
+.ef-hero-terminal.is-booting {
+  animation: ef-chassis-unfold 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes ef-chassis-unfold {
+  0% { clip-path: polygon(0 49.7%,100% 49.7%,100% 50.3%,calc(100% - 18px) 50.3%,0 50.3%); filter: brightness(1.7); }
+  100% { clip-path: polygon(0 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%); filter: brightness(1); }
+}
+
+/* 2. 面板纵向激光自检扫描线 (Laser Scanline) */
+.ef-panel::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--ef-accent) 50%, transparent 100%);
+  box-shadow: 0 0 12px 2px var(--ef-accent-soft);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.ef-hero-terminal.is-booting .ef-panel::after {
+  animation: ef-laser-scan 0.5s linear 0.15s forwards;
+}
+
+@keyframes ef-laser-scan {
+  0% {
+    top: 0%;
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.6;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* 3. 四角准星：开机时从内向外机械锁定 */
+.ef-hero-terminal.is-booting .ef-reticle {
+  opacity: 0;
+  animation: ef-reticle-lock 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+}
+
+@keyframes ef-reticle-lock {
+  0% {
+    opacity: 0;
+    transform: translate(var(--lock-x, 0px), var(--lock-y, 0px));
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+/* 4. 头像与简介区：高频闪烁切入 (CRT Glitch Flicker) */
+.ef-hero-terminal.is-booting .ef-profile-header,
+.ef-hero-terminal.is-booting .ef-bio-box,
+.ef-hero-terminal.is-booting .ef-action-bar {
+  opacity: 0;
+  animation: ef-module-snap 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.ef-hero-terminal.is-booting .ef-profile-header { animation-delay: 0.18s; }
+.ef-hero-terminal.is-booting .ef-bio-box        { animation-delay: 0.28s; }
+.ef-hero-terminal.is-booting .ef-action-bar     { animation-delay: 0.38s; }
+
+@keyframes ef-module-snap {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  30% {
+    opacity: 0.4;
+  }
+  45% {
+    opacity: 0.15; /* 模拟通电瞬间接触闪烁 */
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 5. 16格信号完整性刻度条：逐格充能点亮 */
+.ef-hero-terminal.is-booting .ef-segmented-bar i.active,
+.ef-hero-terminal.is-booting .ef-segmented-bar i.pulse {
+  opacity: 0.1;
+  background: var(--ef-bar-inactive);
+  animation: ef-bar-charge 0.15s ease forwards;
+  animation-delay: calc(0.35s + var(--bar-idx, 0) * 0.035s);
+}
+
+@keyframes ef-bar-charge {
+  0% {
+    opacity: 0.2;
+    background: #ffffff;
+    box-shadow: 0 0 8px #ffffff;
+  }
+  100% {
+    opacity: 1;
+    background: var(--ef-accent);
+    box-shadow: none;
+  }
+}
+
+/* 6. 右下角分类扇区卡片：错峰机械插槽滑入 */
+.ef-hero-terminal.is-booting .ef-sector-card {
+  opacity: 0;
+  animation: ef-sector-slot-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(0.35s + var(--card-idx, 0) * 0.06s);
+}
+
+@keyframes ef-sector-slot-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 7. 底部斜纹警示条：水平无限缓慢巡航流动（可选常驻微动效） */
+.ef-hazard-stripe {
+  background-size: 22.62px 22.62px; /* 精确匹配 45度 16px 周期 */
+  animation: ef-hazard-march 1.8s linear infinite;
+}
+
+@keyframes ef-hazard-march {
+  0% { background-position: 0 0; }
+  100% { background-position: 22.62px 0; }
+}
+
+/* 无障碍兼容：若用户系统开启“减弱动态效果”则直接显示最终态 */
+@media (prefers-reduced-motion: reduce) {
+  .ef-hero-terminal.is-booting,
+  .ef-hero-terminal.is-booting * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+
+.ef-demo-controls { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 20px; color: var(--ef-text-muted); }
+.ef-demo-controls p { margin: 0; line-height: 1.7; }
+#ef-replay { cursor: pointer; flex-shrink: 0; font-family: inherit; }
+.ef-hardware { margin-top: auto; padding: 16px 0 0; font-size: .65rem; line-height: 1.8; color: var(--ef-text-muted); position: relative; z-index: 1; }
+.ef-action-bar { margin-top: 0; }
+.ef-hero-terminal.is-booting .ef-terminal-topbar,
+.ef-hero-terminal.is-booting .ef-terminal-footer { animation: ef-power-lock .35s steps(1, end) both; }
+@keyframes ef-power-lock { 0%, 40% { opacity: .25; } 20%, 60%, 100% { opacity: 1; } }
+@media (max-width: 600px) { .ef-demo-controls { align-items: flex-start; } }
+/* 此规则必须位于所有动画规则之后，包含伪元素。 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .ef-hero-terminal.is-booting .ef-panel::after { opacity: 0 !important; }
+}
+
+/* =========================================================
+   BLOG ARCHIVE STATS MATRIX (左侧站内内容统计仪表盘)
+   ========================================================= */
+.ef-blog-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background-color: var(--ef-border-color);
+  border: 1px solid var(--ef-border-color);
+  margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 2;
+}
+
+.ef-stat-cell {
+  background-color: var(--ef-bg-base);
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ef-stat-label {
+  color: var(--ef-text-muted);
+  font-size: 0.65rem;
+}
+
+.ef-stat-val {
+  font-family: var(--ef-font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--ef-text-main);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ef-stat-val small {
+  font-family: var(--ef-font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ef-accent);
+  margin-left: 2px;
+}
+
+.ef-stat-date {
+  color: var(--ef-accent);
+}
+
+/* 联动开屏自检动画：让统计矩阵在简介框之后切入 */
+.ef-hero-terminal.is-booting .ef-blog-stats {
+  opacity: 0;
+  animation: ef-module-snap 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.33s forwards;
+}
+
+@media (max-width: 600px) {
+  .ef-blog-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* 归档库布局：统计矩阵填充中段，操作入口固定在下沿。 */
+.ef-profile-panel { justify-content: flex-start; }
+.ef-bio-box { margin-bottom: 1.1rem; }
+.ef-blog-stats { margin-top: auto; }
+.ef-stat-cell { min-width: 0; }
+.ef-stat-label { line-height: 1.65; overflow-wrap: anywhere; }
+.ef-stat-val { margin-top: auto; }
+.ef-action-bar { padding-top: 0; }
+.ef-action-bar .ef-btn-primary { flex-basis: 100%; justify-content: space-between; }
+.ef-action-bar .ef-btn-ghost { justify-content: center; }
+.ef-telemetry-labels { gap: 10px; flex-wrap: wrap; line-height: 1.6; }
+.ef-panel-title-bar { gap: 8px; flex-wrap: wrap; line-height: 1.6; }
+.ef-time-row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.ef-name { font-size: 1.6rem; }
+.ef-subname { display: block; margin-top: 6px; font-size: .9rem; }
+.ef-uid { overflow-wrap: anywhere; font-size: .68rem; }
+.ef-watermark { font-size: clamp(3rem, 6vw, 5rem); }
+.ef-preview-note { color: var(--ef-text-muted); font-size: .75rem; line-height: 1.8; margin: 16px 0 0; }
+.ef-demo-controls { margin-top: 12px; }
+@media (max-width: 600px) {
+  .ef-stat-cell { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; }
+  .ef-stat-val { margin-top: 0; flex-shrink: 0; }
+  .ef-uptime-display { align-items: flex-start; }
+  .ef-uid { font-size: .6rem; }
+  .ef-name { font-size: 1.3rem; }
+  .ef-action-bar .ef-btn { max-width: 100%; line-height: 1.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ef-hero-terminal.is-booting .ef-blog-stats { animation: none !important; opacity: 1; transform: none; }
+}
+
+/* 最近同步精确到日，保持完整日期单行显示。 */
+.ef-stat-date { font-size: 1.1rem; white-space: nowrap; }
