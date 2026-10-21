@@ -66,7 +66,8 @@ def test_private_uploads_protected_before_and_after_attachment(clients):
     admin,anonymous,_=clients
     url=upload(admin)
     public_url=url.replace('/api/admin/files/','/uploads/')
-    assert anonymous.get(public_url).status_code==404
+    denied=anonymous.get(public_url)
+    assert denied.status_code==404 and denied.headers['cache-control']=='no-store'
     assert anonymous.get(url).status_code==401
     assert admin.get(url).status_code==200
     assert admin.get(url).headers['cache-control']=='no-store'

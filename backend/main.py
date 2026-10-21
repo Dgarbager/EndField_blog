@@ -319,7 +319,7 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             "font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; "
             "connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
         )
-        if request.url.path.startswith('/api/') or request.url.path in ('/admin.html', '/post.html', '/private.html', '/', '/index.html'):
+        if request.url.path.startswith(('/api/', '/uploads/')) or request.url.path in ('/admin.html', '/post.html', '/private.html', '/', '/index.html'):
             response.headers['Cache-Control'] = 'no-store'
         return response
 
