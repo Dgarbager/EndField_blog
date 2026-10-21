@@ -11,7 +11,7 @@
 .ef-login-card label, .ef-password-dialog label {font-size:.8rem;color:var(--ef-text-muted);}
 .ef-login-submit {width:100%;justify-content:center;margin-top:12px;}
 .ef-gate-tabs {display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
-.ef-gate-tabs .active {border-color:var(--ef-accent);color:var(--ef-accent-ink);}
+.ef-gate-tabs .active {border-color:var(--ef-accent);color:var(--ef-accent-contrast);}
 .ef-auth-hint {color:var(--ef-text-muted);font-size:.75rem;line-height:1.8;margin:14px 0 0;}
 #ef-login-error, #ef-password-error {font-size:.8rem;min-height:24px;margin:12px 0 0;line-height:1.7;}
 .ef-password-dialog, .ef-progress-modal {width:min(460px,calc(100% - 32px));max-height:calc(100svh - 40px);background:var(--ef-bg-panel);color:var(--ef-text-main);border:1px solid var(--ef-border-color);border-top:3px solid var(--ef-accent);padding:26px;}
