@@ -26,7 +26,7 @@
       $('#stat-total-docs').textContent=telemetry.total_docs;$('#mini-total-docs').textContent=telemetry.total_docs;
       $('#filter-all-count').textContent=telemetry.total_docs;
       const words=telemetry.total_words;
-      $('#stat-total-words').textContent=words>=1000?(words/1000).toFixed(1):words;$('#stat-word-unit').textContent=words>=1000?'K':'字';
+      $('#stat-total-words').textContent=words>=1000?(words/1000).toFixed(1):words;$('#stat-word-unit').textContent=words>=1000?'K':'';
       $('#stat-last-update').textContent=telemetry.last_update||'暂无上传';$('#mini-last-update').textContent=telemetry.last_update||'暂无上传';
       for(let i=1;i<=3;i++)$(`#sec-0${i}-count`).textContent=telemetry.sectors[`SEC_0${i}`]||0;
       $('#data-status').textContent='ARCHIVE DATA // 已连接数据库';
