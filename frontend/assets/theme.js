@@ -3,6 +3,7 @@
   const key = 'ef_blog_theme_mode';
   const colors = {night:'#111317',day:'#EBEEF2',wuling:'#10171A'};
   const root = document.documentElement;
+  const assetVersion = document.currentScript ? new URL(document.currentScript.src).search : '';
   const buttons = Array.from(document.querySelectorAll('[data-set-theme]'));
   const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const jobs = new Map();
@@ -42,7 +43,7 @@
       button.classList.toggle('active',selected);
       button.setAttribute('aria-pressed',String(selected));
     });
-    document.querySelectorAll('.ef-avatar, .ef-infobar-avatar').forEach(image => {image.src=`./assets/avatar-${valid}.svg`;});
+    document.querySelectorAll('.ef-avatar, .ef-infobar-avatar').forEach(image => {image.src=`./assets/avatar-${valid}.svg${assetVersion}`;});
     document.querySelectorAll('.ef-thumb-img[data-theme-illustration]').forEach(image => {image.src=`./assets/cnc-toolpath-${valid}.svg`;});
     const codeStyle = document.getElementById('code-theme');
     if (codeStyle) codeStyle.href = `./assets/vendor/highlight-${valid === 'day' ? 'day' : 'dark'}.css`;
