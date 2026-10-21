@@ -6,7 +6,8 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, unquote
+import posixpath
 import math
 import hashlib
 import time
@@ -20,7 +21,7 @@ import warnings
 import xml.etree.ElementTree as ET
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, UploadFile, File
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response, JSONResponse, FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
@@ -34,6 +35,21 @@ ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
 Image.MAX_IMAGE_PIXELS = 40_000_000
 security = HTTPBearer(auto_error=False)
 SUMMARY_COLUMNS = 'id,title,sector,excerpt,tags,cover_url,word_count,read_time,is_pinned,created_at,updated_at'
+UPLOAD_REFERENCE = re.compile(r'/(?:uploads|api/admin/files)/([A-Za-z0-9_./%~-]+)')
+
+
+def upload_paths(text: str):
+    paths = {posixpath.normpath(unquote(path)) for path in UPLOAD_REFERENCE.findall(text)}
+    return {path for path in paths if not path.startswith(('../', '/')) and path != '..'}
+
+
+def normalize_uploads(text: str, private: bool):
+    site = os.environ.get('SITE_URL', '').rstrip('/')
+    if site:
+        text = text.replace(site + '/uploads/', '/uploads/').replace(site + '/api/admin/files/', '/api/admin/files/')
+    prefix = '/api/admin/files/' if private else '/uploads/'
+    # Only rewrite local URLs, leaving external image hosts alone.
+    return re.sub(r'(?<![\w:/.-])/(?:uploads|api/admin/files)/([A-Za-z0-9_./-]+)', lambda match: prefix + match[1], text)
 
 
 def timestamp():
@@ -136,7 +152,7 @@ class PostInput(BaseModel):
         if not value:
             return ''
         parsed = urlsplit(value)
-        local = value.startswith('/uploads/') and not parsed.netloc and '..' not in value.split('/')
+        local = value.startswith(('/uploads/', '/api/admin/files/')) and not parsed.netloc and '..' not in value.split('/')
         remote = parsed.scheme == 'https' and parsed.netloc and not parsed.username and not parsed.password
         if not local and not remote:
             raise ValueError('封面须为上传图片路径或HTTPS图片地址')
@@ -181,6 +197,20 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             db.execute('CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY CHECK(id=1), password_hash TEXT NOT NULL, updated_at TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, created_at TEXT NOT NULL)')
             db.execute('CREATE INDEX IF NOT EXISTS admin_sessions_expiry ON admin_sessions(expires_at)')
+            db.execute('CREATE TABLE IF NOT EXISTS upload_access (path TEXT PRIMARY KEY, is_private INTEGER NOT NULL DEFAULT 0)')
+            db.execute('CREATE TABLE IF NOT EXISTS post_uploads (post_id INTEGER NOT NULL, path TEXT NOT NULL, PRIMARY KEY(post_id,path))')
+            db.execute('CREATE INDEX IF NOT EXISTS post_uploads_path ON post_uploads(path)')
+            # Register legacy files once; unregistered paths must fail closed at read time.
+            for path in (storage / 'uploads').rglob('*'):
+                if path.is_file() and path.suffix.lower() in ALLOWED_EXTENSIONS:
+                    db.execute('INSERT OR IGNORE INTO upload_access VALUES (?,0)', (path.relative_to(storage / 'uploads').as_posix(),))
+            # Backfill existing posts, including legacy SEC_04 images, without changing IDs or dates.
+            db.execute('DELETE FROM post_uploads')
+            for row in db.execute('SELECT id,sector,content_md,cover_url FROM posts').fetchall():
+                private = row['sector'] == 'SEC_04'
+                content, cover = normalize_uploads(row['content_md'], private), normalize_uploads(row['cover_url'], private)
+                db.execute('UPDATE posts SET content_md=?,cover_url=? WHERE id=?', (content, cover, row['id']))
+                sync_uploads(db, row['id'], row['sector'], content, cover)
             initial_password = os.environ.get('BLOG_ADMIN_PASS', '')
             if initial_password and not db.execute('SELECT 1 FROM admin_settings WHERE id=1').fetchone():
                 if len(initial_password) < 8 or len(initial_password) > 128 or not initial_password.strip():
@@ -238,6 +268,12 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             raise HTTPException(401, '登录已失效，请重新登录')
         return record
 
+    def sync_uploads(db, post_id, sector, content, cover):
+        db.execute('DELETE FROM post_uploads WHERE post_id=?', (post_id,))
+        for path in upload_paths(content + '\n' + cover):
+            db.execute('INSERT INTO post_uploads VALUES (?,?)', (post_id, path))
+            db.execute('INSERT INTO upload_access VALUES (?,?) ON CONFLICT(path) DO UPDATE SET is_private=MAX(is_private,excluded.is_private)', (path, int(sector == 'SEC_04')))
+
     def require_admin(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(security)):
         if session_record(request):
             return
@@ -283,7 +319,7 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             "font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; "
             "connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
         )
-        if request.url.path.startswith('/api/') or request.url.path in ('/admin.html', '/post.html', '/', '/index.html'):
+        if request.url.path.startswith('/api/') or request.url.path in ('/admin.html', '/post.html', '/private.html', '/', '/index.html'):
             response.headers['Cache-Control'] = 'no-store'
         return response
 
@@ -378,23 +414,32 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
         succeeded(key)
         return cookie_response(request, raw, expires, password_changed=True)
 
-    @app.get('/api/telemetry')
-    def telemetry():
+    def telemetry_for(private=False):
         with connect() as db:
             row = db.execute('''SELECT COUNT(*) AS total_docs,COALESCE(SUM(word_count),0) AS total_words,
                 MAX(updated_at) AS last_update,
                 COALESCE(SUM(sector='SEC_01'),0) AS sec1,COALESCE(SUM(sector='SEC_02'),0) AS sec2,
-                COALESCE(SUM(sector='SEC_03'),0) AS sec3,COALESCE(SUM(sector='SEC_04'),0) AS sec4 FROM posts''').fetchone()
+                COALESCE(SUM(sector='SEC_03'),0) AS sec3,COALESCE(SUM(sector='SEC_04'),0) AS sec4 FROM posts WHERE (sector='SEC_04')=?''', (int(private),)).fetchone()
         return {'total_docs': row['total_docs'], 'total_words': row['total_words'],
                 'last_update': row['last_update'][:10].replace('-', '.') if row['last_update'] else None,
                 'sectors': dict(zip(SECTORS, [row['sec1'], row['sec2'], row['sec3'], row['sec4']]))}
 
-    @app.get('/api/posts')
-    def list_posts(sector: str = 'ALL', page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100),
-                   tag: str = Query('', max_length=48), q: str = Query('', max_length=200)):
+    @app.get('/api/telemetry')
+    def telemetry():
+        return telemetry_for()
+
+    @app.get('/api/admin/private/telemetry', dependencies=[Depends(require_session)])
+    def private_telemetry():
+        return telemetry_for(True)
+
+    def query_posts(sector='ALL', page=1, limit=10, tag='', q='', scope='public'):
         if sector not in ('ALL', *SECTORS):
             raise HTTPException(422, '无效的扇区')
         conditions, args = [], []
+        if scope == 'public':
+            conditions.append("sector!='SEC_04'")
+        elif scope == 'private':
+            conditions.append("sector='SEC_04'")
         if sector != 'ALL':
             conditions.append('sector=?'); args.append(sector)
         if tag.strip().lstrip('#'):
@@ -411,24 +456,50 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
                               [*args, limit, (actual - 1) * limit]).fetchall()
         return {'items': [dict(row) for row in rows], 'total': total, 'page': actual, 'limit': limit, 'pages': pages}
 
-    @app.get('/api/posts/{post_id}')
-    def get_post(post_id: int):
+    @app.get('/api/posts')
+    def list_posts(sector: str = 'ALL', page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100),
+                   tag: str = Query('', max_length=48), q: str = Query('', max_length=200)):
+        return query_posts(sector, page, limit, tag, q)
+
+    @app.get('/api/admin/posts', dependencies=[Depends(require_session)])
+    def managed_posts(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), q: str = Query('', max_length=200)):
+        return query_posts(page=page, limit=limit, q=q, scope='all')
+
+    @app.get('/api/admin/private/posts', dependencies=[Depends(require_session)])
+    def private_posts(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), tag: str = Query('', max_length=48), q: str = Query('', max_length=200)):
+        return query_posts(page=page, limit=limit, tag=tag, q=q, scope='private')
+
+    def read_post(post_id, scope='public'):
+        condition = " AND sector!='SEC_04'" if scope == 'public' else " AND sector='SEC_04'" if scope == 'private' else ''
         with connect() as db:
-            row = db.execute('SELECT * FROM posts WHERE id=?', (post_id,)).fetchone()
+            row = db.execute('SELECT * FROM posts WHERE id=?' + condition, (post_id,)).fetchone()
             if not row:
                 raise HTTPException(404, '文章不存在或已删除')
-            ordered = db.execute('SELECT id,title FROM posts ORDER BY is_pinned DESC,id DESC').fetchall()
+            ordered = db.execute('SELECT id,title FROM posts WHERE 1=1' + condition + ' ORDER BY is_pinned DESC,id DESC').fetchall()
         result = dict(row)
         position = next(i for i, item in enumerate(ordered) if item['id'] == post_id)
         result['prev_post'] = dict(ordered[position - 1]) if position > 0 else None
         result['next_post'] = dict(ordered[position + 1]) if position + 1 < len(ordered) else None
         return result
 
+    @app.get('/api/posts/{post_id}')
+    def get_post(post_id: int):
+        return read_post(post_id)
+
+    @app.get('/api/admin/posts/{post_id}', dependencies=[Depends(require_session)])
+    def managed_post(post_id: int):
+        return read_post(post_id, 'all')
+
+    @app.get('/api/admin/private/posts/{post_id}', dependencies=[Depends(require_session)])
+    def private_post(post_id: int):
+        return read_post(post_id, 'private')
+
     def values(post: PostInput):
         plain = text_from_markdown(post.content_md)
         count = len(re.sub(r'\s', '', plain))
-        return (post.title, post.sector, post.excerpt.strip() or plain[:100], post.content_md,
-                post.tags, post.cover_url, count, max(1, math.ceil(count / 400)), int(post.is_pinned))
+        private = post.sector == 'SEC_04'
+        return (post.title, post.sector, post.excerpt.strip() or plain[:100], normalize_uploads(post.content_md, private),
+                post.tags, normalize_uploads(post.cover_url, private), count, max(1, math.ceil(count / 400)), int(post.is_pinned))
 
     @app.post('/api/admin/posts', status_code=201, dependencies=[Depends(require_admin)])
     def create_post(post: PostInput):
@@ -437,7 +508,9 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             cursor = db.execute('''INSERT INTO posts(title,sector,excerpt,content_md,tags,cover_url,word_count,read_time,is_pinned,created_at,updated_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)''', (*values(post), now, now))
             post_id = cursor.lastrowid
-        return get_post(post_id)
+            saved = db.execute('SELECT content_md,cover_url FROM posts WHERE id=?', (post_id,)).fetchone()
+            sync_uploads(db, post_id, post.sector, saved['content_md'], saved['cover_url'])
+        return read_post(post_id, 'all')
 
     @app.put('/api/admin/posts/{post_id}', dependencies=[Depends(require_admin)])
     def update_post(post_id: int, post: PostInput):
@@ -446,7 +519,9 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
                                 (*values(post), timestamp(), post_id))
             if cursor.rowcount == 0:
                 raise HTTPException(404, '文章不存在或已删除')
-        return get_post(post_id)
+            saved = db.execute('SELECT content_md,cover_url FROM posts WHERE id=?', (post_id,)).fetchone()
+            sync_uploads(db, post_id, post.sector, saved['content_md'], saved['cover_url'])
+        return read_post(post_id, 'all')
 
     @app.delete('/api/admin/posts/{post_id}', status_code=204, dependencies=[Depends(require_admin)])
     def delete_post(post_id: int):
@@ -454,10 +529,11 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             cursor = db.execute('DELETE FROM posts WHERE id=?', (post_id,))
             if cursor.rowcount == 0:
                 raise HTTPException(404, '文章不存在或已删除')
+            db.execute('DELETE FROM post_uploads WHERE post_id=?', (post_id,))
         return Response(status_code=204)
 
     @app.post('/api/admin/upload', status_code=201, dependencies=[Depends(require_admin)])
-    async def upload(file: UploadFile = File(...)):
+    async def upload(file: UploadFile = File(...), archive: Literal['public', 'private'] = 'public'):
         extension = Path(file.filename or '').suffix.lower()
         if extension not in ALLOWED_EXTENSIONS:
             raise HTTPException(415, '仅支持 PNG、JPG、WEBP、GIF 图片')
@@ -487,12 +563,17 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
         directory.mkdir(parents=True, exist_ok=True)
         name = f'IMG_{now:%Y%m%d}_{secrets.token_hex(12)}{expected}'
         destination = directory / name
+        path = f'{now:%Y/%m}/{name}'
+        # Commit access policy before creating a private file; it must never have a public window.
+        with connect() as db:
+            db.execute('INSERT INTO upload_access VALUES (?,?)', (path, int(archive == 'private')))
         try:
             with destination.open('xb') as output:
                 output.write(data)
         except OSError:
             raise HTTPException(500, '图片保存失败，请检查存储空间和目录权限')
-        return {'url': f'/uploads/{now:%Y/%m}/{name}'}
+        prefix = '/api/admin/files/' if archive == 'private' else '/uploads/'
+        return {'url': prefix + path}
 
     @app.get('/rss.xml')
     def rss(request: Request):
@@ -501,7 +582,7 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
         for key, value in [('title', '灵犀日志归档库'), ('link', site), ('description', '最新归档日志')]:
             ET.SubElement(channel, key).text = value
         with connect() as db:
-            rows = db.execute(f'SELECT {SUMMARY_COLUMNS} FROM posts ORDER BY id DESC LIMIT 50').fetchall()
+            rows = db.execute(f"SELECT {SUMMARY_COLUMNS} FROM posts WHERE sector!='SEC_04' ORDER BY id DESC LIMIT 50").fetchall()
         for row in rows:
             item = ET.SubElement(channel, 'item')
             ET.SubElement(item, 'title').text = row['title']
@@ -511,8 +592,28 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             ET.SubElement(item, 'description').text = row['excerpt']
         return Response(ET.tostring(document, encoding='utf-8', xml_declaration=True), media_type='application/rss+xml')
 
-    # Directory is created during lifespan, not copied into each release.
-    app.mount('/uploads', StaticFiles(directory=storage / 'uploads', check_dir=False), name='uploads')
+    def uploaded_file(file_path):
+        root = (storage / 'uploads').resolve()
+        path = (root / file_path).resolve()
+        if not path.is_relative_to(root) or not path.is_file() or path.suffix.lower() not in ALLOWED_EXTENSIONS:
+            raise HTTPException(404, '图片不存在')
+        return path
+
+    @app.get('/uploads/{file_path:path}')
+    def public_image(file_path: str):
+        path = uploaded_file(file_path)
+        canonical = path.relative_to((storage / 'uploads').resolve()).as_posix()
+        with connect() as db:
+            access = db.execute('SELECT is_private FROM upload_access WHERE path=?', (canonical,)).fetchone()
+            shared_publicly = db.execute("SELECT 1 FROM post_uploads JOIN posts ON posts.id=post_uploads.post_id WHERE path=? AND sector!='SEC_04' LIMIT 1", (canonical,)).fetchone()
+        if not access or (access['is_private'] and not shared_publicly):
+            raise HTTPException(404, '图片不存在')
+        return FileResponse(path, headers={'Cache-Control': 'no-store'})
+
+    @app.get('/api/admin/files/{file_path:path}', dependencies=[Depends(require_session)])
+    def private_image(file_path: str):
+        return FileResponse(uploaded_file(file_path), headers={'Cache-Control': 'private, no-store', 'Vary': 'Cookie'})
+
     app.mount('/', StaticFiles(directory=frontend, html=True), name='frontend')
     return app
 

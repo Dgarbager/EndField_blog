@@ -221,7 +221,8 @@ button.ef-btn-ghost {
 .ef-view-archive { min-height: 100svh; }
 .ef-view-terminal .ef-terminal-grid { grid-template-columns: 1.25fr 1fr; }
 .ef-view-terminal .ef-sector-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-button.ef-sector-card { min-width: 0; }
+button.ef-sector-card, a.ef-sector-card { min-width: 0; }
+a.ef-sector-card { text-decoration: none; color: inherit; }
 .ef-action-bar .ef-btn-primary { font-size: .75rem; line-height: 1.7; }
 .ef-terminal-status { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--ef-text-muted); margin-top: 14px; }
 .ef-view-terminal .ef-preview-note { margin-top: 8px; font-size: .65rem; }

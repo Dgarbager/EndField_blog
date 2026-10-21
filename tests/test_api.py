@@ -47,11 +47,11 @@ def test_crud_summary_telemetry_and_neighbors(client):
     assert changed.json()['created_at'] == first['created_at']
     assert changed.json()['word_count'] == 4
     stats = client.get('/api/telemetry').json()
-    assert stats['total_docs'] == 3 and stats['sectors']['SEC_04'] == 1
+    assert stats['total_docs'] == 2 and stats['sectors']['SEC_04'] == 0
     assert len(stats['last_update']) == 10
     assert client.delete(f'/api/admin/posts/{second["id"]}', headers=AUTH).status_code == 204
     assert client.get(f'/api/posts/{second["id"]}').status_code == 404
-    assert client.get('/api/telemetry').json()['total_docs'] == 2
+    assert client.get('/api/telemetry').json()['total_docs'] == 1
     assert client.delete('/api/admin/posts/9999', headers=AUTH).status_code == 404
 
 def test_filter_pagination_and_validation(client):

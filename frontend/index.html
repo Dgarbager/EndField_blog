@@ -17,6 +17,7 @@
   <script src="./assets/theme.js" defer></script>
   <script src="./assets/boot.js" defer></script>
   <script src="./assets/api.js" defer></script>
+  <script src="./assets/cards.js" defer></script>
   <script src="./assets/app.js" defer></script>
 </head>
 <body data-active-view="terminal">
@@ -65,8 +66,8 @@
               <span class="ef-avatar-badge">LOG.V2</span>
             </div>
             <div class="ef-identity">
-              <div class="ef-uid ef-mono-label">■ NODE // LINGXI-BLOG-SUBSYSTEM</div>
-              <h1 class="ef-name">LINGXI_LOG <span class="ef-subname">// 灵犀日志归档</span></h1>
+              <div class="ef-uid ef-mono-label">■ NODE // 玑·OS</div>
+              <h1 class="ef-name">天玑_LOG <span class="ef-subname">// 选剑于阁 藏剑于谷</span></h1>
               <div class="ef-tags-row">
                 <span class="ef-mini-tag">INDUSTRIAL_AI</span>
                 <span class="ef-mini-tag">CONTROL_SYS</span>
@@ -77,10 +78,10 @@
 
           <blockquote class="ef-bio-box">
             <p class="ef-bio-text">
-              “在噪声与非线性系统中寻找最优解，用代码与镜头记录开拓区的每一次迭代。”
+              “开拓区没有故事”
             </p>
             <footer class="ef-bio-meta ef-mono-label">
-              &gt; LOG_STATUS: 持续输出算法笔记、智能控制工程与视觉影像归档。
+              &gt; LOG_STATUS: Power of Recording
             </footer>
           </blockquote>
 
@@ -109,8 +110,8 @@
             <button type="button" class="ef-btn ef-btn-ghost ef-mono-label js-random-post">
               [ RANDOM_LOG // 随机漫游 ]
             </button>
-            <a href="/rss.xml" class="ef-btn ef-btn-ghost ef-mono-label">
-              [ RSS_SYNC ]
+            <a href="./admin.html" class="ef-btn ef-btn-ghost ef-mono-label">
+              [ ADMIN_CONSOLE // 管理后台 ]
             </a>
           </div>
         </div>
@@ -169,7 +170,7 @@
                   <span>SEC_01</span>
                   <span class="ef-sector-arrow">↗</span>
                 </div>
-                <div class="ef-sector-name">算法与智能控制</div>
+                <div class="ef-sector-name">智能与探索者</div>
                 <div class="ef-sector-meta ef-mono-label">[ <span id="sec-01-count">—</span> DOCS // ML &amp; GA ]</div>
               </button>
 
@@ -178,7 +179,7 @@
                   <span>SEC_02</span>
                   <span class="ef-sector-arrow">↗</span>
                 </div>
-                <div class="ef-sector-name">系统工程与造物</div>
+                <div class="ef-sector-name">先锋维修纪实</div>
                 <div class="ef-sector-meta ef-mono-label">[ <span id="sec-02-count">—</span> DOCS // TRIZ &amp; HW ]</div>
               </button>
 
@@ -187,18 +188,18 @@
                   <span>SEC_03</span>
                   <span class="ef-sector-arrow">↗</span>
                 </div>
-                <div class="ef-sector-name">网络与终端架构</div>
+                <div class="ef-sector-name">光学映像留存</div>
                 <div class="ef-sector-meta ef-mono-label">[ <span id="sec-03-count">—</span> DOCS // LINUX &amp; WEB ]</div>
               </button>
 
-              <button type="button" class="ef-sector-card js-enter-archive" data-sector="SEC_04">
+              <a href="./private.html" class="ef-sector-card" aria-label="零号档案，仅管理员可见">
                 <div class="ef-sector-top ef-mono-label">
                   <span>SEC_04</span>
                   <span class="ef-sector-arrow">↗</span>
                 </div>
-                <div class="ef-sector-name">光学影像归档</div>
-                <div class="ef-sector-meta ef-mono-label">[ <span id="sec-04-count">—</span> DOCS // PHOTOGRAPHY ]</div>
-              </button>
+                <div class="ef-sector-name">零号档案</div>
+                <div class="ef-sector-meta ef-mono-label">[ ADMIN_ONLY // 仅管理员可见 ]</div>
+              </a>
             </div>
           </div>
 
@@ -270,10 +271,9 @@
       </div>
       <nav class="ef-feed-filters ef-mono-label" aria-label="Sector Filter">
         <button class="ef-filter-chip active" type="button" data-filter="ALL">ALL_LOGS [<span id="filter-all-count">—</span>]</button>
-        <button class="ef-filter-chip" type="button" data-filter="SEC_01">SEC_01 // 算法</button>
-        <button class="ef-filter-chip" type="button" data-filter="SEC_02">SEC_02 // 工程</button>
-        <button class="ef-filter-chip" type="button" data-filter="SEC_03">SEC_03 // 架构</button>
-        <button class="ef-filter-chip" type="button" data-filter="SEC_04">SEC_04 // 影像</button>
+        <button class="ef-filter-chip" type="button" data-filter="SEC_01">SEC_01 // 智能</button>
+        <button class="ef-filter-chip" type="button" data-filter="SEC_02">SEC_02 // 维修</button>
+        <button class="ef-filter-chip" type="button" data-filter="SEC_03">SEC_03 // 映像</button>
       </nav>
     </div>
 

@@ -1,0 +1,5 @@
+.private-shell {max-width:1280px;margin:0 auto;padding:28px clamp(16px,3vw,40px) 60px;}
+.private-search {display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+.private-search input {flex:1;min-width:180px;}
+.ef-topbar-actions {display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+.ef-post-cat:disabled {opacity:1;pointer-events:none;}

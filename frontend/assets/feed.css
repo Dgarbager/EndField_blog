@@ -225,12 +225,26 @@
   color: var(--ef-text-main);
   text-decoration: none;
   display: inline-block;
-  transition: color 0.15s ease, transform 0.2s var(--ef-ease-mech);
+  transition: color 0.15s ease;
+}
+
+/* Extend the native title link across the card, including cards without a cover. */
+.ef-post-title a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* Category and tag controls keep their independent filter actions. */
+.ef-post-cat,
+.ef-tag-item {
+  position: relative;
+  z-index: 2;
 }
 
 .ef-post-card:hover .ef-post-title a {
   color: var(--ef-accent);
-  transform: translateX(3px);
 }
 
 .ef-post-excerpt {

@@ -18,7 +18,7 @@ class References(HTMLParser):
             target = (ROOT / unquote(parsed.path).lstrip('/')).resolve()
             if not target.is_relative_to(ROOT.resolve()) or not target.exists():
                 raise ValueError(f'Missing local reference: {value}')
-for page in ('index.html','post.html','admin.html'):
+for page in ('index.html','post.html','admin.html','private.html'):
     References().feed((ROOT / page).read_text(encoding='utf-8'))
 for svg in (ROOT / 'assets').glob('*.svg'):
     ET.parse(svg)
@@ -31,4 +31,4 @@ for stylesheet in (ROOT / 'assets').rglob('*.css'):
             raise ValueError(f'Missing CSS asset: {stylesheet.name}: {reference}')
 for required in ('backend/main.py','backend/requirements.txt','deploy/lingxi-blog.service','deploy/nginx-blog.conf','scripts/activate_release.sh'):
     assert (BASE / required).is_file(), required
-print('PASS: three pages, local script/style/image/font references, SVG and deployment layout')
+print('PASS: four pages, local script/style/image/font references, SVG and deployment layout')

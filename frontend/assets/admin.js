@@ -4,7 +4,7 @@
   let id=null,revision=0,savedRevision=0,authenticated=false,uploads=0,saving=false,request=0,page=1,pages=1,previewTimer;
   const dirty=()=>revision!==savedRevision;
   const message=(selector,text,error=false)=>{const el=$(selector);el.textContent=text;el.classList.toggle('is-error',error);};
-  const controls=()=>{for(const selector of ['#publish','#new-post','#ef-logout-btn','#ef-password-btn'])$(selector).disabled=saving||uploads>0;};
+  const controls=()=>{for(const selector of ['#publish','#new-post','#ef-logout-btn','#ef-password-btn','#archive-type','#sector'])$(selector).disabled=saving||uploads>0;};
   function changed(){revision++;clearTimeout(previewTimer);previewTimer=setTimeout(preview,180);}
   function preview(){LingxiMarkdown.render($('#markdown-preview'),editor.value);}
   let passwordConfigured=true, gateMode='login';
@@ -15,15 +15,20 @@
     $('#ef-gate-tabs').hidden=passwordConfigured;
     $('#ef-show-login').classList.toggle('active',mode==='login');$('#ef-show-setup').classList.toggle('active',mode==='setup');
     $('#ef-login-title').textContent=mode==='setup'?'设定管理员密码':'终端权限认证';
-    $('#ef-login-description').textContent=mode==='setup'?'先验证原管理口令，再设定你自己的密码。':'输入管理员密码，解锁归档编辑台。';
+    $('#ef-login-description').textContent=mode==='setup'?'先验证原管理口令，再设定你自己的密码。':(new URLSearchParams(location.search).get('next')==='private'?'输入管理员密码，解锁零号档案。':'输入管理员密码，解锁归档编辑台。');
   }
   function showGate(text=''){
     authenticated=false;$('#ef-login-view').hidden=false;$('#ef-editor-view').hidden=true;
+    managerTicket++;$('#managed-posts').replaceChildren();
     for(const selector of ['#ef-auth-badge','#ef-password-btn','#ef-logout-btn'])$(selector).hidden=true;
     if($('#ef-password-dialog').open)$('#ef-password-dialog').close();
     gateModeTo(passwordConfigured?'login':'setup');message('#ef-login-error',text,Boolean(text));controls();
   }
   function showWorkspace(){
+    const target=new URLSearchParams(location.search);
+    if(target.get('next')==='private'){
+      const post=target.get('post');location.replace(/^\d+$/.test(post||'')?'./post.html?id='+post+'&archive=private':'./private.html');return;
+    }
     authenticated=true;$('#ef-login-view').hidden=true;$('#ef-editor-view').hidden=false;
     for(const selector of ['#ef-auth-badge','#ef-password-btn','#ef-logout-btn'])$(selector).hidden=false;
     $('#ef-pass-input').value='';$('#ef-setup-token').value='';$('#ef-new-password').value='';$('#ef-confirm-password').value='';
@@ -75,22 +80,24 @@
     try{await BlogAPI.request('/api/admin/password',{admin:true,method:'PUT',body:JSON.stringify({current_password:$('#ef-current-password').value,new_password:password})});$('#ef-password-dialog').close();message('#save-status','密码已修改，其他设备的登录已失效。当前设备继续保持登录。');}
     catch(error){message('#ef-password-error',error.message,true);}finally{button.disabled=false;}
   });
+  function syncArchiveType(){const privateArchive=$('#archive-type').value==='private';$('#public-sector-field').hidden=privateArchive;}
+  $('#archive-type').addEventListener('change',syncArchiveType);
   form.addEventListener('input',changed);
   function reset(){
-    form.reset();id=null;revision=0;savedRevision=0;$('#editor-heading').textContent='NEW_LOG // 新建归档';$('#publish').textContent='发布归档 ↗';message('#save-status','');message('#upload-status','');preview();
+    form.reset();syncArchiveType();id=null;revision=0;savedRevision=0;$('#editor-heading').textContent='NEW_LOG // 新建归档';$('#publish').textContent='发布归档 ↗';message('#save-status','');message('#upload-status','');preview();
   }
   function canLeave(){if(saving||uploads){message('#save-status','请等待保存或图片上传完成',true);return false;}return !dirty()||confirm('当前有未保存修改，确定放弃吗？');}
   $('#new-post').addEventListener('click',()=>{if(canLeave()){request++;reset();$('#title').focus();}});
   form.addEventListener('submit',async event=>{
     event.preventDefault();if(saving||uploads||!form.reportValidity())return;if(!await ensureAuth())return;
-    const sent=revision,payload={title:$('#title').value,sector:$('#sector').value,excerpt:$('#excerpt').value,content_md:editor.value,tags:$('#tags-input').value,cover_url:$('#cover-url').value,is_pinned:$('#is-pinned').checked};
+    const sent=revision,payload={title:$('#title').value,sector:$('#archive-type').value==='private'?'SEC_04':$('#sector').value,excerpt:$('#excerpt').value,content_md:editor.value,tags:$('#tags-input').value,cover_url:$('#cover-url').value,is_pinned:$('#is-pinned').checked};
     saving=true;controls();message('#save-status','正在保存归档…');
     try{
       const post=await LingxiProgress.request({url:id?'/api/admin/posts/'+id:'/api/admin/posts',method:id?'PUT':'POST',body:payload,taskName:'ARCHIVE_COMMIT // 发布归档',successMessage:'归档已成功写入服务器'});
       id=post.id;if(revision===sent)savedRevision=revision;
       $('#editor-heading').textContent='EDIT_LOG // '+String(id).padStart(2,'0');$('#publish').textContent='保存修改 ↗';
-      message('#save-status',revision===sent?'已保存，文章已在前台发布。':'已保存提交时的版本，编辑区仍有新修改待保存。');
-      const link=document.createElement('a');link.href='./post.html?id='+id;link.target='_blank';link.rel='noopener';link.textContent=' 查看文章 ↗';$('#save-status').append(link);
+      message('#save-status',revision===sent?(post.sector==='SEC_04'?'已保存至零号档案，仅管理员可见。':'已保存，文章已在前台发布。'):'已保存提交时的版本，编辑区仍有新修改待保存。');
+      const link=document.createElement('a');link.href='./post.html?id='+id+(post.sector==='SEC_04'?'&archive=private':'');link.target='_blank';link.rel='noopener';link.textContent=' 查看文章 ↗';$('#save-status').append(link);
       await loadManager();
     }catch(error){if(error.status===401)authenticated=false;message('#save-status',error.message,true);}
     finally{saving=false;controls();}
@@ -98,8 +105,8 @@
   async function editPost(postId){
     if(!canLeave())return;const ticket=++request;message('#save-status','正在读取文章…');
     try{
-      const post=await BlogAPI.request('/api/posts/'+postId);if(ticket!==request)return;
-      id=post.id;$('#title').value=post.title;$('#sector').value=post.sector;$('#excerpt').value=post.excerpt;$('#tags-input').value=post.tags;$('#cover-url').value=post.cover_url;$('#is-pinned').checked=Boolean(post.is_pinned);editor.value=post.content_md;
+      const post=await BlogAPI.request('/api/admin/posts/'+postId,{admin:true});if(ticket!==request)return;
+      id=post.id;$('#title').value=post.title;$('#archive-type').value=post.sector==='SEC_04'?'private':'public';$('#sector').value=post.sector==='SEC_04'?'SEC_01':post.sector;syncArchiveType();$('#excerpt').value=post.excerpt;$('#tags-input').value=post.tags;$('#cover-url').value=post.cover_url;$('#is-pinned').checked=Boolean(post.is_pinned);editor.value=post.content_md;
       revision=0;savedRevision=0;$('#editor-heading').textContent='EDIT_LOG // '+String(id).padStart(2,'0');$('#publish').textContent='保存修改 ↗';message('#save-status','文章已载入');preview();$('#editor-heading').scrollIntoView({block:'start'});$('#title').focus({preventScroll:true});
     }catch(error){message('#save-status',error.message,true);}
   }
@@ -113,14 +120,14 @@
   async function loadManager(){
     const ticket=++managerTicket;message('#manage-status','正在读取已发布归档…');
     try{
-      const data=await BlogAPI.request('/api/posts?'+new URLSearchParams({page,limit:10,q:$('#manage-query').value}));if(ticket!==managerTicket)return;
+      const data=await BlogAPI.request('/api/admin/posts?'+new URLSearchParams({page,limit:10,q:$('#manage-query').value}),{admin:true});if(ticket!==managerTicket)return;
       page=data.page;pages=data.pages;$('#manage-prev').disabled=page===1;$('#manage-next').disabled=page===pages;$('#manage-page').textContent=`${page} / ${pages} · 共 ${data.total} 篇`;
       const container=$('#managed-posts');container.replaceChildren();
       for(const post of data.items){
         const row=document.createElement('div');row.className='managed-row';
-        const info=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('span');title.textContent=post.title;meta.textContent=`${post.sector} · ${post.updated_at.slice(0,10)} · ${post.word_count} 字`+(post.is_pinned?' · 置顶':'');info.append(title,meta);
+        const info=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('span');title.textContent=post.title;meta.textContent=`${post.sector==='SEC_04'?'零号档案 · 仅管理员可见':post.sector+' · 公开档案'} · ${post.updated_at.slice(0,10)} · ${post.word_count} 字`+(post.is_pinned?' · 置顶':'');info.append(title,meta);
         const actions=document.createElement('div');for(const [label,handler] of [['编辑',()=>editPost(post.id)],['删除',()=>removePost(post)]]){const button=document.createElement('button');button.type='button';button.className='ef-filter-chip';button.textContent=label;button.addEventListener('click',handler);actions.append(button);}
-        const view=document.createElement('a');view.href='./post.html?id='+post.id;view.textContent='阅读 ↗';view.target='_blank';view.rel='noopener';actions.append(view);row.append(info,actions);container.append(row);
+        const view=document.createElement('a');view.href='./post.html?id='+post.id+(post.sector==='SEC_04'?'&archive=private':'');view.textContent='阅读 ↗';view.target='_blank';view.rel='noopener';actions.append(view);row.append(info,actions);container.append(row);
       }
       message('#manage-status',data.total?'':'还没有归档，先发布第一篇吧。');
     }catch(error){if(ticket===managerTicket)message('#manage-status',error.message,true);}
@@ -135,7 +142,7 @@
     uploads++;controls();message('#upload-status',`正在上传图片（${uploads}）…`);
     try{
       const body=new FormData();body.append('file',file,file.name||'clipboard.png');
-      const data=await LingxiProgress.request({url:'/api/admin/upload',body,taskName:cover?'COVER_UPLOAD // 封面上传':'IMAGE_UPLOAD // 影像上传',successMessage:'图片已成功保存'});
+      const data=await LingxiProgress.request({url:'/api/admin/upload?archive='+$('#archive-type').value,body,taskName:cover?'COVER_UPLOAD // 封面上传':'IMAGE_UPLOAD // 影像上传',successMessage:'图片已成功保存'});
       if(cover){$('#cover-url').value=data.url;changed();}else{editor.value=editor.value.replace(marker,`![image](${data.url})`);changed();}
       message('#upload-status','图片已上传');preview();
     }catch(error){if(!cover){editor.value=editor.value.replace(marker,'');changed();}message('#upload-status',error.message,true);}
@@ -148,5 +155,5 @@
   editor.addEventListener('dragleave',()=>editor.classList.remove('is-dragging'));
   editor.addEventListener('drop',event=>{editor.classList.remove('is-dragging');const files=Array.from(event.dataTransfer.files);if(files.length){event.preventDefault();files.forEach(file=>uploadImage(file));}});
   addEventListener('beforeunload',event=>{if(dirty()||uploads||saving){event.preventDefault();event.returnValue='';}});
-  const editId=new URLSearchParams(location.search).get('id');preview();refreshAuth().then(()=>{if(authenticated&&/^\d+$/.test(editId||''))editPost(Number(editId));});
+  const editId=new URLSearchParams(location.search).get('id');preview();syncArchiveType();refreshAuth().then(()=>{if(authenticated&&/^\d+$/.test(editId||''))editPost(Number(editId));});
 })();
