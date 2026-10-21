@@ -30,7 +30,7 @@
 4. 服务器单独创建 `/etc/lingxi-blog.env`，按以下字段填写。**不要把这个文件放到仓库或发布包里。**
 
 ```text
-ADMIN_TOKEN=在服务器生成的长随机管理口令
+ADMIN_TOKEN=首次设定密码时使用的授权口令
 STORAGE_DIR=/srv/www/blog/shared/storage
 SITE_URL=https://blog.garbager.de
 MAX_UPLOAD_MB=16
@@ -56,7 +56,7 @@ MAX_UPLOAD_MB=16
 
 ## 上线验收
 
-访问 `/api/health`、`/api/telemetry`、`/admin.html`。在后台发布一篇文章并上传一张图片，确认首页、正文和 `/rss.xml` 同步变化；再次发布程序，确认文章和图片仍存在。
+访问 `/api/health`、`/api/telemetry`、`/admin.html`。首次打开后台先用原 ADMIN_TOKEN 授权设定自己的密码；已有密码时直接登录。登录后可从顶栏修改密码。然后发布一篇文章并上传一张图片，确认首页、正文和 `/rss.xml` 同步变化；再次发布程序，确认文章和图片仍存在。
 
 ## 备份
 
@@ -64,4 +64,17 @@ MAX_UPLOAD_MB=16
 
 ## 本次范围
 
-仅完成本地代码和配置。按你后续要求，没有 Git 提交、GitHub 推送或服务器部署操作。
+本次登录升级使用现有 GitHub Actions 通路发布；不会替换或清空持久化数据库及上传目录。运行记录以 GitHub Actions 和 /api/health 中的实际版本为准。
+
+
+## 本次密码迁移
+
+保留现有服务器 ADMIN_TOKEN，无需为了升级修改服务器环境文件。首次新后台会显示“首次设定密码”，用原管理口令授权后输入你自己的新密码。没有公开默认密码。设置完成后，旧 Bearer 口令不能继续操作管理接口。
+
+数据库会自动新增 admin_settings 和 admin_sessions 表，不更改原 posts 数据。密码哈希和会话随 storage 持久化，发布新版本后仍有效。Cookie 在 HTTPS 下自动带 Secure，另有 HttpOnly 与 SameSite=Strict。不要使用反向代理静态缓存管理 API。
+
+如在服务器通过 BLOG_ADMIN_PASS 预置密码，必须8–128字符且仅初始化空配置；后续网页修改的新密码优先，不会在重启时被旧环境值覆盖。
+
+## 设计参考
+
+[OWASP密码存储建议](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)；[Starlette Cookie接口](https://starlette.dev/responses/)。

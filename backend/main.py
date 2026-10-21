@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 import math
+import hashlib
+import time
+import threading
+from collections import defaultdict, deque
 import os
 import re
 import secrets
@@ -56,6 +60,52 @@ def normalize_tags(value: str) -> str:
     if len(tags) > 24:
         raise ValueError('最多24个标签')
     return ','.join(tags)
+
+
+
+SESSION_COOKIE = 'lingxi_admin_session'
+SESSION_SECONDS = 30 * 24 * 60 * 60
+PASSWORD_ITERATIONS = 600_000
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(salt), PASSWORD_ITERATIONS).hex()
+    return f'pbkdf2_sha256${PASSWORD_ITERATIONS}${salt}${digest}'
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, iterations, salt, expected = encoded.split('$')
+        if algorithm != 'pbkdf2_sha256':
+            return False
+        digest = hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(salt), int(iterations)).hex()
+        return secrets.compare_digest(digest, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+class LoginInput(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+
+
+class PasswordInput(BaseModel):
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator('new_password')
+    @classmethod
+    def not_blank_password(cls, value):
+        if not value.strip():
+            raise ValueError('密码不能全为空格')
+        return value
+
+
+class SetupInput(PasswordInput):
+    setup_token: str = Field(min_length=1, max_length=4096)
+
+
+class ChangePasswordInput(PasswordInput):
+    current_password: str = Field(min_length=1, max_length=128)
 
 
 class PostInput(BaseModel):
@@ -128,6 +178,15 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
             )''')
             db.execute('CREATE INDEX IF NOT EXISTS posts_order ON posts(is_pinned DESC,id DESC)')
             db.execute('CREATE INDEX IF NOT EXISTS posts_sector ON posts(sector)')
+            db.execute('CREATE TABLE IF NOT EXISTS admin_settings (id INTEGER PRIMARY KEY CHECK(id=1), password_hash TEXT NOT NULL, updated_at TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, created_at TEXT NOT NULL)')
+            db.execute('CREATE INDEX IF NOT EXISTS admin_sessions_expiry ON admin_sessions(expires_at)')
+            initial_password = os.environ.get('BLOG_ADMIN_PASS', '')
+            if initial_password and not db.execute('SELECT 1 FROM admin_settings WHERE id=1').fetchone():
+                if len(initial_password) < 8 or len(initial_password) > 128 or not initial_password.strip():
+                    raise ValueError('BLOG_ADMIN_PASS must contain 8 to 128 characters')
+                db.execute('INSERT OR IGNORE INTO admin_settings VALUES (1,?,?)', (hash_password(initial_password), timestamp()))
+
 
     @asynccontextmanager
     async def lifespan(app):
@@ -138,17 +197,83 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
                   docs_url=None, redoc_url=None, openapi_url=None)
     app.state.storage = storage
 
-    def require_admin(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+    failures = defaultdict(deque)
+    attempts_lock = threading.Lock()
+
+    def throttle(request: Request, scope: str):
+        identity = request.client.host if request.client else 'unknown'
+        key = (scope, identity)
+        now = time.time()
+        with attempts_lock:
+            queue = failures[key]
+            while queue and queue[0] < now - 300:
+                queue.popleft()
+            if len(queue) >= 8:
+                raise HTTPException(429, '尝试次数过多，请5分钟后重试', headers={'Retry-After': '300'})
+        return key
+
+    def failed(key):
+        with attempts_lock:
+            failures[key].append(time.time())
+
+    def succeeded(key):
+        with attempts_lock:
+            failures.pop(key, None)
+
+    def configured():
+        with connect() as db:
+            return db.execute('SELECT password_hash FROM admin_settings WHERE id=1').fetchone()
+
+    def session_record(request: Request):
+        raw = request.cookies.get(SESSION_COOKIE, '')
+        if not raw or len(raw) > 128:
+            return None
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        with connect() as db:
+            return db.execute('SELECT token_hash,expires_at FROM admin_sessions WHERE token_hash=? AND expires_at>?', (digest, int(time.time()))).fetchone()
+
+    def require_session(request: Request):
+        record = session_record(request)
+        if not record:
+            raise HTTPException(401, '登录已失效，请重新登录')
+        return record
+
+    def require_admin(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+        if session_record(request):
+            return
+        # Existing automation remains available only until the initial password is set.
+        # Once configured, the old bootstrap token cannot bypass login or password changes.
+        if configured():
+            raise HTTPException(401, '请先登录管理后台')
         if not token:
-            raise HTTPException(503, '管理接口尚未配置 ADMIN_TOKEN')
+            raise HTTPException(503, '请先在服务器配置 ADMIN_TOKEN 以授权首次设定密码')
         if not credentials or not secrets.compare_digest(credentials.credentials.encode(), token.encode()):
             raise HTTPException(401, '管理口令无效', headers={'WWW-Authenticate': 'Bearer'})
+
+    def new_session(db):
+        raw = secrets.token_urlsafe(32)
+        expires = int(time.time()) + SESSION_SECONDS
+        db.execute('DELETE FROM admin_sessions WHERE expires_at<=?', (int(time.time()),))
+        db.execute('INSERT INTO admin_sessions VALUES (?,?,?)', (hashlib.sha256(raw.encode()).hexdigest(), expires, timestamp()))
+        return raw, expires
+
+    def cookie_response(request: Request, raw: str, expires: int, **extra):
+        response = JSONResponse({'authenticated': True, 'expires_at': expires, **extra})
+        response.set_cookie(SESSION_COOKIE, raw, max_age=SESSION_SECONDS, expires=datetime.fromtimestamp(expires, timezone.utc),
+                            httponly=True, secure=request.url.scheme == 'https', samesite='strict', path='/api/admin')
+        return response
 
     @app.middleware('http')
     async def security_headers(request: Request, call_next):
         content_length = request.headers.get('content-length')
         if content_length and (not content_length.isdigit() or int(content_length) > max_upload + 1024 * 1024):
             return JSONResponse({'detail': '请求内容过大'}, status_code=413)
+        if request.method in ('POST', 'PUT', 'DELETE', 'PATCH') and request.url.path.startswith('/api/admin/'):
+            origin = request.headers.get('origin')
+            expected = f'{request.url.scheme}://{request.url.netloc}'
+            allowed = {expected, os.environ.get('SITE_URL', '').rstrip('/')}
+            if origin and origin not in allowed:
+                return JSONResponse({'detail': '不允许跨站管理请求'}, status_code=403)
         response = await call_next(request)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -171,6 +296,87 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
     @app.get('/api/admin/auth', dependencies=[Depends(require_admin)])
     def check_auth():
         return {'authenticated': True}
+
+    @app.get('/api/admin/auth/status')
+    def auth_status():
+        return {'password_configured': bool(configured()), 'setup_available': bool(token)}
+
+    @app.get('/api/admin/session')
+    def check_session(request: Request):
+        session = require_session(request)
+        return {'authenticated': True, 'expires_at': session['expires_at']}
+
+    @app.post('/api/admin/setup')
+    def setup_password(payload: SetupInput, request: Request):
+        key = throttle(request, 'setup')
+        if configured():
+            raise HTTPException(409, '已设定密码，请使用登录后的修改密码功能')
+        if not token:
+            raise HTTPException(503, '服务器未配置首次授权口令 ADMIN_TOKEN')
+        if not secrets.compare_digest(payload.setup_token.encode(), token.encode()):
+            failed(key)
+            raise HTTPException(401, '原管理口令不正确')
+        encoded = hash_password(payload.new_password)
+        with connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if db.execute('SELECT 1 FROM admin_settings WHERE id=1').fetchone():
+                raise HTTPException(409, '密码已设定，请登录')
+            db.execute('INSERT INTO admin_settings VALUES (1,?,?)', (encoded, timestamp()))
+            raw, expires = new_session(db)
+        succeeded(key)
+        return cookie_response(request, raw, expires, password_set=True)
+
+    @app.post('/api/admin/login')
+    def login(payload: LoginInput, request: Request):
+        key = throttle(request, 'login')
+        settings = configured()
+        if not settings:
+            raise HTTPException(409, '请先设定管理员密码')
+        encoded = settings['password_hash']
+        if not verify_password(payload.password, encoded):
+            failed(key)
+            raise HTTPException(401, '密码不正确')
+        with connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            current = db.execute('SELECT password_hash FROM admin_settings WHERE id=1').fetchone()
+            if not secrets.compare_digest(encoded, current['password_hash']):
+                raise HTTPException(401, '密码已变更，请重新登录')
+            raw, expires = new_session(db)
+        succeeded(key)
+        return cookie_response(request, raw, expires)
+
+    @app.post('/api/admin/logout')
+    def logout(request: Request):
+        raw = request.cookies.get(SESSION_COOKIE, '')
+        if raw:
+            with connect() as db:
+                db.execute('DELETE FROM admin_sessions WHERE token_hash=?', (hashlib.sha256(raw.encode()).hexdigest(),))
+        response = JSONResponse({'authenticated': False})
+        response.delete_cookie(SESSION_COOKIE, path='/api/admin', httponly=True, secure=request.url.scheme == 'https', samesite='strict')
+        return response
+
+    @app.put('/api/admin/password')
+    def change_password(payload: ChangePasswordInput, request: Request):
+        session = require_session(request)
+        key = throttle(request, 'password')
+        encoded = configured()['password_hash']
+        if not verify_password(payload.current_password, encoded):
+            failed(key)
+            raise HTTPException(400, '当前密码不正确')
+        if secrets.compare_digest(payload.current_password.encode(), payload.new_password.encode()):
+            raise HTTPException(422, '新密码须与当前密码不同')
+        new_hash = hash_password(payload.new_password)
+        with connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            current = db.execute('SELECT password_hash FROM admin_settings WHERE id=1').fetchone()
+            still_valid = db.execute('SELECT 1 FROM admin_sessions WHERE token_hash=? AND expires_at>?', (session['token_hash'], int(time.time()))).fetchone()
+            if not still_valid or not secrets.compare_digest(encoded, current['password_hash']):
+                raise HTTPException(401, '登录状态已变更，请重新登录')
+            db.execute('UPDATE admin_settings SET password_hash=?,updated_at=? WHERE id=1', (new_hash, timestamp()))
+            db.execute('DELETE FROM admin_sessions')
+            raw, expires = new_session(db)
+        succeeded(key)
+        return cookie_response(request, raw, expires, password_changed=True)
 
     @app.get('/api/telemetry')
     def telemetry():

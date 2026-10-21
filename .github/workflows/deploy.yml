@@ -33,6 +33,7 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           for file in frontend/assets/*.js; do node --check "$file"; done
+          node --test tests/test_progress.cjs
 
   deploy:
     needs: validate

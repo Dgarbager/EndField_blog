@@ -4,7 +4,7 @@ FastAPI + SQLite 后端与原生 JavaScript 前端。保留双视图终端、开
 
 ## 已实现
 
-- `/admin.html`：管理口令连接、Markdown 实时预览、新建/编辑/删除、置顶、封面上传、粘贴截图与拖入传图、文章管理与检索。
+- `/admin.html`：独立密码登录、首次设定与修改密码、30天免登 Cookie、Markdown 实时预览、新建/编辑/删除、置顶、封面上传、粘贴截图与拖入传图、文章管理与检索。
 - `/`：数据库统计、按分类和标签筛选、分页、随机漫游；不再展示虚构文章与统计数字。
 - `/post.html?id=1`：完整 Markdown 正文、代码高亮与复制、数学公式、目录及上一篇/下一篇。
 - `/rss.xml`：从数据库生成的真实订阅。
@@ -36,9 +36,9 @@ blog/
 .\start-local.ps1
 ```
 
-首次启动会创建 `.venv` 并安装依赖，然后让你输入本地管理口令。口令用于本次服务进程，不会写入 Git 文件。打开 `http://127.0.0.1:8000/admin.html`，输入相同口令即可发文。
+首次启动会创建 `.venv` 并安装依赖；尚未设定密码时，输入一次本地初始授权口令。打开 `http://127.0.0.1:8000/admin.html`，在“首次设定密码”中用该口令验证并设定自己的8–128字符密码。之后使用新密码登录，30天内免重复输入。已设定密码的本地库无需再次输入初始口令。
 
-只读查看可运行 `./start-local.ps1 -ReadOnly`。未设置 `ADMIN_TOKEN` 时，管理 API 返回 503；没有默认生产密码。
+只读查看可运行 `./start-local.ps1 -ReadOnly`。未设置 `ADMIN_TOKEN` 时，管理 API 返回 503；没有默认生产密码。密码设置保存在数据库中，程序重启或部署不会恢复旧密码。
 
 也可手动运行：
 
@@ -55,7 +55,7 @@ $env:ADMIN_TOKEN = Read-Host 'Local admin token'
 
 默认存储在仓库根目录 `storage/`；生产环境必须设置 `STORAGE_DIR=/srv/www/blog/shared/storage`，与版本目录分开。程序不会自动插入演示文章。删除文章不会删除图片，以免误伤其他文章引用的素材。
 
-后台按草案使用 Bearer 口令，浏览器本地保存口令；共用设备使用后点击“退出并清除”。公网部署使用 HTTPS，且不要把管理口令、`.env`、数据库或上传图片提交到 Git。
+后台使用 HttpOnly Cookie，登录态在服务器验证，不把密码或会话 Token 放入 localStorage。密码以PBKDF2-SHA256加盐哈希保存，登录有效期30天；退出撤销当前会话，改密撤销其他设备会话。首次设定必须验证旧 ADMIN_TOKEN，设定完成后旧口令不能绕过密码登录。公网使用 HTTPS，初始口令、`.env`、数据库和上传图片不能提交到 Git。
 
 ## 检查和测试
 
@@ -69,6 +69,6 @@ $env:ADMIN_TOKEN = Read-Host 'Local admin token'
 
 ## 自行同步部署
 
-代码尚未提交或推送。现有静态部署通路需要升级为 Python 服务，详见 [部署说明](docs/deployment.md)。新版工作流仅在 `DEPLOY_ENABLED=true` **且** `BACKEND_READY=true` 时部署，避免未准备后端的服务器收到不完整发布。
+现有全栈部署通路沿用，详见 [部署说明](docs/deployment.md)。新版工作流仅在 `DEPLOY_ENABLED=true` **且** `BACKEND_READY=true` 时部署，避免未准备后端的服务器收到不完整发布。
 
 [接口契约](docs/api.md) · [开发与验证记录](docs/verification.md)

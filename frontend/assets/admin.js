@@ -4,21 +4,77 @@
   let id=null,revision=0,savedRevision=0,authenticated=false,uploads=0,saving=false,request=0,page=1,pages=1,previewTimer;
   const dirty=()=>revision!==savedRevision;
   const message=(selector,text,error=false)=>{const el=$(selector);el.textContent=text;el.classList.toggle('is-error',error);};
-  const controls=()=>{$('#publish').disabled=saving||uploads>0;$('#new-post').disabled=saving||uploads>0;};
+  const controls=()=>{for(const selector of ['#publish','#new-post','#ef-logout-btn','#ef-password-btn'])$(selector).disabled=saving||uploads>0;};
   function changed(){revision++;clearTimeout(previewTimer);previewTimer=setTimeout(preview,180);}
   function preview(){LingxiMarkdown.render($('#markdown-preview'),editor.value);}
-  function setToken(token){BlogAPI.setToken(token);}
-  try{$('#admin-token').value=localStorage.getItem('ef_admin_token')||'';}catch(_){}
-  async function connect(){
-    const token=$('#admin-token').value.trim();if(!token){message('#auth-status','请输入管理口令',true);return false;}
-    setToken(token);message('#auth-status','正在验证…');
-    try{await BlogAPI.request('/api/admin/auth',{admin:true});authenticated=true;message('#auth-status','已连接。口令保存在当前浏览器，退出可清除。');return true;}
-    catch(error){authenticated=false;setToken('');message('#auth-status',error.message,true);return false;}
+  let passwordConfigured=true, gateMode='login';
+  let legacyToken='';
+  try{legacyToken=localStorage.getItem('ef_admin_token')||'';localStorage.removeItem('ef_admin_token');localStorage.removeItem('ef_admin_session_token');}catch(_){}
+  function gateModeTo(mode){
+    gateMode=mode;$('#ef-login-form').hidden=mode!=='login';$('#ef-setup-form').hidden=mode!=='setup';
+    $('#ef-gate-tabs').hidden=passwordConfigured;
+    $('#ef-show-login').classList.toggle('active',mode==='login');$('#ef-show-setup').classList.toggle('active',mode==='setup');
+    $('#ef-login-title').textContent=mode==='setup'?'设定管理员密码':'终端权限认证';
+    $('#ef-login-description').textContent=mode==='setup'?'先验证原管理口令，再设定你自己的密码。':'输入管理员密码，解锁归档编辑台。';
   }
-  async function ensureAuth(){if(authenticated)return true;return connect();}
-  $('#auth-form').addEventListener('submit',async event=>{event.preventDefault();await connect();});
-  $('#logout').addEventListener('click',()=>{authenticated=false;setToken('');$('#admin-token').value='';message('#auth-status','已退出并清除浏览器口令');});
-  $('#admin-token').addEventListener('input',()=>{authenticated=false;});
+  function showGate(text=''){
+    authenticated=false;$('#ef-login-view').hidden=false;$('#ef-editor-view').hidden=true;
+    for(const selector of ['#ef-auth-badge','#ef-password-btn','#ef-logout-btn'])$(selector).hidden=true;
+    if($('#ef-password-dialog').open)$('#ef-password-dialog').close();
+    gateModeTo(passwordConfigured?'login':'setup');message('#ef-login-error',text,Boolean(text));controls();
+  }
+  function showWorkspace(){
+    authenticated=true;$('#ef-login-view').hidden=true;$('#ef-editor-view').hidden=false;
+    for(const selector of ['#ef-auth-badge','#ef-password-btn','#ef-logout-btn'])$(selector).hidden=false;
+    $('#ef-pass-input').value='';$('#ef-setup-token').value='';$('#ef-new-password').value='';$('#ef-confirm-password').value='';
+    message('#ef-login-error','');controls();loadManager();
+  }
+  async function refreshAuth(){
+    $('#ef-auth-retry').hidden=true;message('#ef-login-error','');
+    try{
+      const config=await BlogAPI.request('/api/admin/auth/status');passwordConfigured=config.password_configured;
+      if(!passwordConfigured&&legacyToken){$('#ef-setup-token').value=legacyToken;legacyToken='';}
+      try{await BlogAPI.request('/api/admin/session');showWorkspace();}
+      catch(error){if(error.status!==401)throw error;showGate();if(!passwordConfigured&&!config.setup_available)message('#ef-login-error','服务器需先配置 ADMIN_TOKEN 以授权首次设定密码',true);}
+    }catch(error){showGate(error.message);$('#ef-auth-retry').hidden=false;}
+  }
+  $('#ef-show-login').addEventListener('click',()=>gateModeTo('login'));
+  $('#ef-show-setup').addEventListener('click',()=>gateModeTo('setup'));
+  $('#ef-auth-retry').addEventListener('click',refreshAuth);
+  $('#ef-login-form').addEventListener('submit',async event=>{
+    event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;message('#ef-login-error','正在验证…');
+    try{await BlogAPI.request('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('#ef-pass-input').value})});passwordConfigured=true;showWorkspace();}
+    catch(error){message('#ef-login-error',error.message,true);}finally{button.disabled=false;}
+  });
+  $('#ef-setup-form').addEventListener('submit',async event=>{
+    event.preventDefault();const password=$('#ef-new-password').value;
+    if(password!==$('#ef-confirm-password').value){message('#ef-login-error','两次输入的密码不一致',true);return;}
+    const button=event.currentTarget.querySelector('button');button.disabled=true;message('#ef-login-error','正在设定密码…');
+    try{await BlogAPI.request('/api/admin/setup',{method:'POST',body:JSON.stringify({setup_token:$('#ef-setup-token').value.trim(),new_password:password})});passwordConfigured=true;showWorkspace();}
+    catch(error){message('#ef-login-error',error.message,true);if(error.status===409){passwordConfigured=true;gateModeTo('login');}}
+    finally{button.disabled=false;}
+  });
+  async function ensureAuth(){
+    if(!authenticated){showGate('请先登录');return false;}
+    try{await BlogAPI.request('/api/admin/session',{admin:true});return true;}
+    catch(error){showGate(error.status===401?'登录已过期，重新登录后可继续编辑。':error.message);return false;}
+  }
+  document.addEventListener('ef:session-expired',()=>showGate('登录已失效，重新登录后可继续编辑。'));
+  $('#ef-logout-btn').addEventListener('click',async()=>{
+    if(!canLeave())return;
+    try{await BlogAPI.request('/api/admin/logout',{method:'POST'});request++;reset();showGate();}
+    catch(error){message('#save-status','退出失败：'+error.message,true);}
+  });
+  $('#ef-password-btn').addEventListener('click',()=>{$('#ef-password-form').reset();message('#ef-password-error','');$('#ef-password-dialog').showModal();});
+  $('#ef-password-close').addEventListener('click',()=>$('#ef-password-dialog').close());
+  $('#ef-password-dialog').addEventListener('close',()=>$('#ef-password-form').reset());
+  $('#ef-password-form').addEventListener('submit',async event=>{
+    event.preventDefault();const password=$('#ef-change-password').value;
+    if(password!==$('#ef-change-confirm').value){message('#ef-password-error','两次输入的新密码不一致',true);return;}
+    const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;message('#ef-password-error','正在更新密码…');
+    try{await BlogAPI.request('/api/admin/password',{admin:true,method:'PUT',body:JSON.stringify({current_password:$('#ef-current-password').value,new_password:password})});$('#ef-password-dialog').close();message('#save-status','密码已修改，其他设备的登录已失效。当前设备继续保持登录。');}
+    catch(error){message('#ef-password-error',error.message,true);}finally{button.disabled=false;}
+  });
   form.addEventListener('input',changed);
   function reset(){
     form.reset();id=null;revision=0;savedRevision=0;$('#editor-heading').textContent='NEW_LOG // 新建归档';$('#publish').textContent='发布归档 ↗';message('#save-status','');message('#upload-status','');preview();
@@ -30,7 +86,7 @@
     const sent=revision,payload={title:$('#title').value,sector:$('#sector').value,excerpt:$('#excerpt').value,content_md:editor.value,tags:$('#tags-input').value,cover_url:$('#cover-url').value,is_pinned:$('#is-pinned').checked};
     saving=true;controls();message('#save-status','正在保存归档…');
     try{
-      const post=await BlogAPI.request(id?'/api/admin/posts/'+id:'/api/admin/posts',{admin:true,method:id?'PUT':'POST',body:JSON.stringify(payload)});
+      const post=await LingxiProgress.request({url:id?'/api/admin/posts/'+id:'/api/admin/posts',method:id?'PUT':'POST',body:payload,taskName:'ARCHIVE_COMMIT // 发布归档',successMessage:'归档已成功写入服务器'});
       id=post.id;if(revision===sent)savedRevision=revision;
       $('#editor-heading').textContent='EDIT_LOG // '+String(id).padStart(2,'0');$('#publish').textContent='保存修改 ↗';
       message('#save-status',revision===sent?'已保存，文章已在前台发布。':'已保存提交时的版本，编辑区仍有新修改待保存。');
@@ -79,7 +135,7 @@
     uploads++;controls();message('#upload-status',`正在上传图片（${uploads}）…`);
     try{
       const body=new FormData();body.append('file',file,file.name||'clipboard.png');
-      const data=await BlogAPI.request('/api/admin/upload',{admin:true,method:'POST',body});
+      const data=await LingxiProgress.request({url:'/api/admin/upload',body,taskName:cover?'COVER_UPLOAD // 封面上传':'IMAGE_UPLOAD // 影像上传',successMessage:'图片已成功保存'});
       if(cover){$('#cover-url').value=data.url;changed();}else{editor.value=editor.value.replace(marker,`![image](${data.url})`);changed();}
       message('#upload-status','图片已上传');preview();
     }catch(error){if(!cover){editor.value=editor.value.replace(marker,'');changed();}message('#upload-status',error.message,true);}
@@ -92,5 +148,5 @@
   editor.addEventListener('dragleave',()=>editor.classList.remove('is-dragging'));
   editor.addEventListener('drop',event=>{editor.classList.remove('is-dragging');const files=Array.from(event.dataTransfer.files);if(files.length){event.preventDefault();files.forEach(file=>uploadImage(file));}});
   addEventListener('beforeunload',event=>{if(dirty()||uploads||saving){event.preventDefault();event.returnValue='';}});
-  const editId=new URLSearchParams(location.search).get('id');preview();loadManager();if($('#admin-token').value)connect();if(/^\d+$/.test(editId||''))editPost(Number(editId));
+  const editId=new URLSearchParams(location.search).get('id');preview();refreshAuth().then(()=>{if(authenticated&&/^\d+$/.test(editId||''))editPost(Number(editId));});
 })();

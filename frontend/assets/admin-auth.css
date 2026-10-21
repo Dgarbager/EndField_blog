@@ -1,0 +1,30 @@
+/* Login, password settings and transfer HUD use the active theme. */
+.ef-topbar-actions {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;}
+#ef-auth-badge {color:var(--ef-online-green);font-size:.65rem;}
+.ef-login-gate {min-height:calc(100svh - 100px);display:flex;align-items:center;justify-content:center;padding:28px 16px;}
+.ef-login-card {width:min(100%,460px);background:var(--ef-bg-panel);border:1px solid var(--ef-border-color);border-top:3px solid var(--ef-accent);padding:32px;clip-path:polygon(0 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%);}
+.ef-login-card .ef-uid {font-size:.7rem;}
+.ef-login-card h1 {font-size:1.6rem;margin:12px 0;}
+#ef-login-description {font-size:.85rem;color:var(--ef-text-muted);margin-bottom:22px;}
+.ef-login-card form, .ef-password-dialog form {display:flex;flex-direction:column;gap:10px;}
+.ef-login-card input, .ef-password-dialog input {width:100%;}
+.ef-login-card label, .ef-password-dialog label {font-size:.8rem;color:var(--ef-text-muted);}
+.ef-login-submit {width:100%;justify-content:center;margin-top:12px;}
+.ef-gate-tabs {display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+.ef-gate-tabs .active {border-color:var(--ef-accent);color:var(--ef-accent-ink);}
+.ef-auth-hint {color:var(--ef-text-muted);font-size:.75rem;line-height:1.8;margin:14px 0 0;}
+#ef-login-error, #ef-password-error {font-size:.8rem;min-height:24px;margin:12px 0 0;line-height:1.7;}
+.ef-password-dialog, .ef-progress-modal {width:min(460px,calc(100% - 32px));max-height:calc(100svh - 40px);background:var(--ef-bg-panel);color:var(--ef-text-main);border:1px solid var(--ef-border-color);border-top:3px solid var(--ef-accent);padding:26px;}
+.ef-password-dialog::backdrop, .ef-progress-modal::backdrop {background:var(--ef-backdrop);backdrop-filter:blur(6px);}
+.ef-password-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px;}
+.ef-password-heading h2 {font-size:1rem;}
+.ef-progress-modal {border-left:4px solid var(--ef-accent);}
+.ef-modal-header {display:flex;justify-content:space-between;gap:14px;color:var(--ef-accent-ink);font-size:.7rem;}
+.ef-progress-modal h2 {font-size:1.05rem;line-height:1.7;margin:18px 0;}
+.ef-progress-track {height:12px;background:var(--ef-bg-base);border:1px solid var(--ef-border-color);overflow:hidden;}
+.ef-progress-fill {height:100%;width:0;background:repeating-linear-gradient(-45deg,var(--ef-accent),var(--ef-accent) 8px,var(--ef-accent-soft) 8px,var(--ef-accent-soft) 16px);transition:width .12s linear;}
+.ef-progress-fill.is-success {background:var(--ef-online-green);}
+.ef-progress-fill.is-error {background:#e44949;}
+.ef-modal-footer {display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--ef-text-muted);font-size:.65rem;margin-top:16px;line-height:1.8;}
+@media(max-width:600px){.content-topbar{align-items:flex-start;}.ef-topbar-actions{justify-content:flex-start;}.ef-login-card{padding:24px 20px;}.ef-password-dialog,.ef-progress-modal{padding:22px 18px;}.ef-modal-header{flex-wrap:wrap;}}
+@media(prefers-reduced-motion:reduce){.ef-progress-fill{transition:none;}}

@@ -14,6 +14,13 @@ with tempfile.TemporaryDirectory(prefix='lingxi-package-') as tmp:
     release=os.environ.get('GITHUB_SHA','local')
     if not re.fullmatch(r'[A-Za-z0-9_-]+',release):raise SystemExit('Invalid release identifier')
     (destination/'RELEASE').write_text(release,encoding='utf-8')
+    # Bust browser/CDN caches after a release, particularly when auth API contracts change.
+    for page in (destination/'frontend').glob('*.html'):
+        text=page.read_text(encoding='utf-8')
+        text=re.sub(r'((?:src|href)=["\'])(\./assets/[^"\'?#]+)(["\'])',
+                    lambda match: match[1]+match[2]+'?v='+release+match[3], text)
+        page.write_text(text,encoding='utf-8')
+
     target=root/'dist';target.mkdir(exist_ok=True)
     shutil.make_archive(str(target/'blog-release'),'gztar',root_dir=destination)
 print('Prepared dist/blog-release.tar.gz (code only; no storage or secrets)')
