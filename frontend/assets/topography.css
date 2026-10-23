@@ -3,18 +3,18 @@
    Attribution: topography-credit.txt */
 :root {
   --ef-topo-svg: url('./topography.svg');
-  --ef-topo-base-line: rgba(142,149,162,.14);
-  --ef-topo-flow-glow: rgba(255,208,0,.38);
+  --ef-topo-base-line: rgba(142,149,162,.21);
+  --ef-topo-flow-glow: rgba(255,208,0,.48);
   --ef-topo-shield: rgba(11,12,14,.82);
 }
 [data-theme="day"] {
-  --ef-topo-base-line: rgba(17,19,23,.08);
-  --ef-topo-flow-glow: rgba(217,140,0,.35);
+  --ef-topo-base-line: rgba(17,19,23,.12);
+  --ef-topo-flow-glow: rgba(217,140,0,.44);
   --ef-topo-shield: rgba(228,231,236,.84);
 }
 [data-theme="wuling"] {
-  --ef-topo-base-line: rgba(0,229,184,.11);
-  --ef-topo-flow-glow: rgba(0,229,184,.42);
+  --ef-topo-base-line: rgba(0,229,184,.17);
+  --ef-topo-flow-glow: rgba(0,229,184,.52);
   --ef-topo-shield: rgba(10,16,18,.82);
 }
 

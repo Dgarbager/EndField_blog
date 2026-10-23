@@ -21,6 +21,12 @@
   <script src="./assets/app.js" defer></script>
 <link rel="stylesheet" href="./assets/topography.css">
 <script src="./assets/topography.js" defer></script>
+<link rel="stylesheet" href="./assets/vendor/aplayer.css">
+<link rel="stylesheet" href="./assets/music-player.css">
+<script src="./assets/vendor/aplayer.js" defer></script>
+<script src="./assets/music-config.js" defer></script>
+<script src="./assets/music-engine.js" defer></script>
+<script src="./assets/music-player.js" defer></script>
 </head>
 <body data-active-view="terminal">
 <div class="ef-topography" aria-hidden="true" inert><div class="ef-topography-layer ef-topography-far"></div><div class="ef-topography-layer ef-topography-near"></div></div>
@@ -298,6 +304,13 @@
 
 </main>
 <footer class="ef-background-credit"><a href="./assets/topography-credit.txt" target="_blank" rel="noopener">Topography · Hero Patterns</a></footer>
+<aside id="ef-music" class="ef-music" aria-label="主题音乐播放器" hidden>
+  <div class="ef-music-heading"><span id="ef-music-heading">THEME_BGM // 主题音乐</span><button id="ef-music-list-toggle" class="ef-music-list-toggle" type="button" aria-label="主题歌单" aria-expanded="false" aria-controls="ef-music-tracks">≡</button></div>
+  <ol id="ef-music-tracks" class="ef-music-track-list" aria-label="主题歌单" hidden></ol>
+  <div id="ef-aplayer"></div>
+  <div class="ef-music-footer"><span id="ef-music-status" class="ef-music-status" role="status" aria-live="polite">音乐待命</span><input id="ef-music-volume" class="ef-music-volume" type="range" min="0" max="100" step="1" value="65" aria-label="音乐音量"><button id="ef-music-retry" class="ef-music-retry" type="button" hidden>重试</button></div>
+  <button id="ef-music-toggle" class="ef-music-toggle" type="button" aria-label="收起音乐播放器" aria-expanded="true" aria-controls="ef-aplayer">‹</button>
+</aside>
 </body>
 </html>
 

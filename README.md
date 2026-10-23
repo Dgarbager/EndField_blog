@@ -72,3 +72,7 @@ $env:ADMIN_TOKEN = Read-Host 'Local admin token'
 现有全栈部署通路沿用，详见 [部署说明](docs/deployment.md)。新版工作流仅在 `DEPLOY_ENABLED=true` **且** `BACKEND_READY=true` 时部署，避免未准备后端的服务器收到不完整发布。
 
 [接口契约](docs/api.md) · [开发与验证记录](docs/verification.md)
+
+## 三色主题音乐
+
+封面、文章列表与阅读页已接入 APlayer，主题联动、单曲循环、淡入淡出和分曲进度记忆。音乐放在 `STORAGE_DIR/uploads/audio/`，不会进入代码发布包。详见 [音乐播放器说明](docs/music-player.md)。

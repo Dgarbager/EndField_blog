@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field, field_validator
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 SECTORS = ('SEC_01', 'SEC_02', 'SEC_03', 'SEC_04')
+MUSIC_FILES = {theme: f'bgm-{theme}.mp3' for theme in ('night', 'day', 'wuling')}
 TZ = timezone(timedelta(hours=8))
 IMAGE_TYPES = {'PNG': '.png', 'JPEG': '.jpg', 'WEBP': '.webp', 'GIF': '.gif'}
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
@@ -181,6 +182,7 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
     def initialize():
         storage.mkdir(parents=True, exist_ok=True)
         (storage / 'uploads').mkdir(exist_ok=True)
+        (storage / 'uploads' / 'audio').mkdir(exist_ok=True)
         with connect() as db:
             db.execute('PRAGMA journal_mode=WAL')
             db.execute('''CREATE TABLE IF NOT EXISTS posts (
@@ -322,6 +324,42 @@ def create_app(storage_dir: str | Path | None = None, admin_token: str | None = 
         if request.url.path.startswith(('/api/', '/uploads/')) or request.url.path in ('/admin.html', '/post.html', '/private.html', '/', '/index.html'):
             response.headers['Cache-Control'] = 'no-store'
         return response
+
+    def music_file(theme: str):
+        # Only these three explicitly public BGM names are eligible. Never expose
+        # arbitrary upload paths or change the private image access policy.
+        if theme not in MUSIC_FILES:
+            return None
+        directory = (storage / 'uploads' / 'audio').resolve()
+        path = (directory / MUSIC_FILES[theme]).resolve()
+        if not directory.is_relative_to(storage) or not path.is_relative_to(directory):
+            return None
+        try:
+            return path if path.is_file() and path.stat().st_size > 0 else None
+        except OSError:
+            return None
+
+    @app.get('/api/music')
+    def music_catalog():
+        tracks = {}
+        for theme in MUSIC_FILES:
+            path = music_file(theme)
+            version = ''
+            if path:
+                try:
+                    info = path.stat()
+                    version = f'?v={info.st_mtime_ns}-{info.st_size}'
+                except OSError:
+                    path = None
+            tracks[theme] = {'available': path is not None, 'url': f'/api/music/{theme}{version}'}
+        return {'tracks': tracks}
+
+    @app.api_route('/api/music/{theme}', methods=['GET', 'HEAD'])
+    def music_audio(theme: str):
+        path = music_file(theme)
+        if path is None:
+            raise HTTPException(404, '该主题音乐尚未配置')
+        return FileResponse(path, media_type='audio/mpeg')
 
     @app.get('/api/health')
     def health():
