@@ -1,0 +1,109 @@
+/* Topography: Steve Schoger / Hero Patterns, CC BY 4.0.
+   Original geometry is retained in topography.svg; colours and motion are adapted here.
+   Attribution: topography-credit.txt */
+:root {
+  --ef-topo-svg: url('./topography.svg');
+  --ef-topo-base-line: rgba(142,149,162,.14);
+  --ef-topo-flow-glow: rgba(255,208,0,.38);
+  --ef-topo-shield: rgba(11,12,14,.82);
+}
+[data-theme="day"] {
+  --ef-topo-base-line: rgba(17,19,23,.08);
+  --ef-topo-flow-glow: rgba(217,140,0,.35);
+  --ef-topo-shield: rgba(228,231,236,.84);
+}
+[data-theme="wuling"] {
+  --ef-topo-base-line: rgba(0,229,184,.11);
+  --ef-topo-flow-glow: rgba(0,229,184,.42);
+  --ef-topo-shield: rgba(10,16,18,.82);
+}
+
+/* A body stacking context keeps the fixed background above the page paint,
+   below content, and outside the animated/clipped terminal views. */
+body { position: relative; isolation: isolate; }
+.ef-topography {
+  display: none;
+  --ef-topo-x: 0px;
+  --ef-topo-y: 0px;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  contain: layout paint;
+  pointer-events: none;
+}
+@supports ((mask-image: linear-gradient(#000,#000)) or (-webkit-mask-image: linear-gradient(#000,#000))) {
+  .ef-topography { display: block; }
+}
+.ef-topography-layer {
+  position: absolute;
+  inset: -15%;
+  background-color: var(--ef-topo-base-line);
+  -webkit-mask-image: var(--ef-topo-svg);
+  mask-image: var(--ef-topo-svg);
+  mask-mode: alpha;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+.ef-topography-near {
+  z-index: 1;
+  background-image:
+    radial-gradient(circle 420px at 25% 30%,var(--ef-topo-flow-glow),transparent 70%),
+    radial-gradient(circle 480px at 75% 75%,var(--ef-topo-flow-glow),transparent 70%),
+    linear-gradient(125deg,transparent 30%,var(--ef-topo-flow-glow) 50%,transparent 70%);
+  background-size: 160% 160%,160% 160%,250% 250%;
+  -webkit-mask-size: 600px 600px;
+  mask-size: 600px 600px;
+  animation: ef-topo-drift-main 75s linear infinite,
+             ef-topo-light-wave 18s ease-in-out infinite alternate;
+}
+.ef-topography-far {
+  opacity: .45;
+  -webkit-mask-size: 880px 880px;
+  mask-size: 880px 880px;
+  transform: translate(calc(var(--ef-topo-x) * -.45),calc(var(--ef-topo-y) * -.45)) rotate(-6deg) scale(1.03);
+  animation: ef-topo-drift-sub 110s linear infinite;
+}
+.ef-topography::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: radial-gradient(ellipse 72% 62% at 50% 48%,var(--ef-page-bg) 15%,var(--ef-topo-shield) 68%,transparent 100%);
+}
+/* The editor and article have an even quieter reading field. */
+.content-page .ef-topography::after {
+  background: radial-gradient(ellipse 82% 75% at 50% 45%,var(--ef-page-bg) 20%,var(--ef-topo-shield) 82%,transparent 120%);
+}
+.ef-topography[data-paused="true"] .ef-topography-layer { animation-play-state: paused; }
+.ef-background-credit {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 6px clamp(16px,3vw,40px) 14px;
+  text-align: right;
+  font: .6rem/1.6 var(--ef-font-mono);
+  color: var(--ef-text-muted);
+}
+.ef-background-credit a { color: inherit; text-decoration-color: var(--ef-border-color); text-underline-offset: 3px; }
+
+@keyframes ef-topo-drift-main {
+  0% { -webkit-mask-position: 0 0; mask-position: 0 0; transform: translate(var(--ef-topo-x),var(--ef-topo-y)) scale(1); }
+  50% { transform: translate(var(--ef-topo-x),var(--ef-topo-y)) scale(1.03); }
+  100% { -webkit-mask-position: 600px 600px; mask-position: 600px 600px; transform: translate(var(--ef-topo-x),var(--ef-topo-y)) scale(1); }
+}
+@keyframes ef-topo-drift-sub {
+  from { -webkit-mask-position: 0 0; mask-position: 0 0; }
+  to { -webkit-mask-position: -880px 880px; mask-position: -880px 880px; }
+}
+@keyframes ef-topo-light-wave {
+  from { background-position: 0% 0%,100% 100%,0% 50%; }
+  to { background-position: 100% 60%,0% 20%,100% 50%; }
+}
+@keyframes ef-topo-mobile-breathe { from { opacity: .65; } to { opacity: 1; } }
+@media (hover: none), (pointer: coarse) {
+  .ef-topography-far { display: none; }
+  .ef-topography-near { animation: ef-topo-mobile-breathe 18s ease-in-out infinite alternate; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ef-topography-layer { animation: none !important; transform: none !important; }
+}

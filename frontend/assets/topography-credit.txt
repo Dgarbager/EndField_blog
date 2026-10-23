@@ -1,0 +1,8 @@
+Topography — Hero Patterns
+Creator: Steve Schoger
+Source: https://heropatterns.com/
+Original SVG data: https://heropatterns.com/js/app.js (Topography)
+License: Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+
+Adaptation: Original 600 x 600 path geometry retained; displayed through CSS alpha masks, recoloured to match the site themes, and layered with animation.
